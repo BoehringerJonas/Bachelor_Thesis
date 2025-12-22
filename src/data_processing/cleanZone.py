@@ -22,7 +22,7 @@ class CleanZone:
         table = table[~table["Pat-ID"].str.startswith("AD")]
         for w in table['Pat-ID']:
             print(table.loc[table['Pat-ID'] == w, 'PEEP'].values[0])
-            """
+            
             MLMmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLM' / w / f"{w}_images_part_sb.mat")
             key = list(MLMmat.keys())[3]
             MLMrgb = self.get_norm_rgb(MLMmat[key])
@@ -42,10 +42,10 @@ class CleanZone:
             
             del MLMrgb, MLMmat, pMLMmat, vMLMmat, pkey, vkey, key
             gc.collect()
-            torch.cuda.empty_cache()
 
             TITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / w / f"{w}_images_part_tit.mat")
             key = list(TITmat.keys())[3]
+            print("read tit")
             TITrgb = self.get_norm_rgb(TITmat[key])
             print('TIT: ' + str(TITrgb.shape))
 
@@ -60,11 +60,12 @@ class CleanZone:
             print(vkey)
             print('vTIT: ' + str(vTITmat[vkey].shape))
 
+            print("start save")
             self.save_npz(TITrgb, pTITmat[pkey], vTITmat[vkey], w, table, 'TITeit')
+            print("finish save")
             del TITmat, TITrgb, pTITmat, vTITmat, pkey, vkey, key
             gc.collect()
-            torch.cuda.empty_cache()
-            """
+
             save_path = Path(self.input_path) / 'clean' / w
             save_path.mkdir(parents = True, exist_ok = True)
             np.savez(
@@ -80,7 +81,6 @@ class CleanZone:
                 Pmean = table.loc[table['Pat-ID'] == w, 'Pmean'].values[0],
                 targetPEEP = table.loc[table['Pat-ID'] == w, 'PEEP'].values[0]
             )
-            break
 
 
     def get_norm_rgb(self, arr):
@@ -97,9 +97,15 @@ class CleanZone:
             mode="bilinear",
             align_corners=False
         )
+        print("bevor norm")
         mean = rgb.mean(dim=(0, 2, 3), keepdim=True)
         std  = rgb.std(dim=(0, 2, 3), keepdim=True) + 1e-6
-        rgb = (rgb - mean) / std
+        print("right bevor norm")
+        rgb.sub_(mean).div_(std)
+        print('after norm')
+
+        N = arr.shape[0]
+        out = []
         return rgb
 
 
