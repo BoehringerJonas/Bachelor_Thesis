@@ -1,0 +1,1 @@
+upsampling und rgb umwandlung muss for dem training ohne speicherung gemacht werden
