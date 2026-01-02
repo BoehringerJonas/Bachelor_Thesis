@@ -100,30 +100,31 @@ class CleanZone:
                 volumeData=vData,
             )
 
+    def get_global(self, typ: str):
+        spez = "sb" if typ == "MLM" else "tit"
 
-    def get_global(self, type: str, batch_size=256):
-        spez = "sb" if type == "MLM" else "tit"
-        
-        sum_arr = 0
-        sum_sq_arr = 0
-        count = 0
+        total_sum = 0.0
+        total_sq_sum = 0.0
+        total_count = 0
 
-        table = pd.read_csv(self.input_path / 'raw' / 'MLM' / 'peep_tabular_data.csv')
+        table = pd.read_csv(self.input_path/'raw'/'MLM'/'peep_tabular_data.csv')
         table = table[~table["Pat-ID"].str.startswith("AD")]
-        
-        for w in table['Pat-ID']:
-            mat = scipy.io.loadmat(self.input_path / 'raw' / type / w / f"{w}_images_part_{spez}.mat")
-            key = list(mat.keys())[3]
-            arr = np.transpose(mat[key], (2,0,1))  # shape (N,H,W)
 
-            for i in range(0, arr.shape[0]):
-                sum_arr += arr.sum(axis=0)
-                sum_sq_arr += (arr**2).sum(axis=0)
-                count += arr.shape[0]
+        for w in table['Pat-ID']:
+            mat = scipy.io.loadmat(
+                self.input_path/'raw'/typ/w/f"{w}_images_part_{spez}.mat"
+            )
+            key = list(mat.keys())[3]
+            arr = np.transpose(mat[key], (2,0,1)).astype(np.float64)
+
+            total_sum += arr.sum()
+            total_sq_sum += np.square(arr).sum()
+            total_count += arr.size
 
             del mat, arr
 
-        mean = sum_arr / count
-        var  = sum_sq_arr / count - mean**2
+        mean = total_sum / total_count
+        var = total_sq_sum / total_count - mean**2
         std = np.sqrt(var) + 1e-6
-        return mean.astype(np.float32), std.astype(np.float32)
+
+        return np.float32(mean), np.float32(std)
