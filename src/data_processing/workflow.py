@@ -8,7 +8,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
-logger = logging.getLogger("main_logger")
+logger = logging.getLogger("workflow")
 
 
 class Workflow:
@@ -19,9 +19,7 @@ class Workflow:
         self.input_path = Path(input_path)
 
     def run(self) -> None:
-        logger.info("\n##########\nStart Process\n##########")
-
-
+        logger.info("Start Process")
         logger.info("\n##########\nStart Clean Zone\n##########")
         CleanZone(self.input_path).run()
 
