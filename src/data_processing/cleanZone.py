@@ -5,28 +5,29 @@ import logging
 from pathlib import Path
 from typing import Union
 import scipy
-import torch
-import torch.nn.functional as F
 
 
 class CleanZone:
     def __init__(self, 
-                 input_path: Union[str, Path], 
-                 ) -> None:
+        input_path: Union[str, Path], 
+        ) -> None:
         self.input_path = input_path
+        self.MLMmean, self.MLMstd = self.get_global("MLM")
+        self.TITmean, self.TITstd = self.get_global("Titration")
 
 
     def run(self) -> None:
         csv_path = self.input_path/ 'raw' / 'MLM' / 'peep_tabular_data.csv'
         table = pd.read_csv(csv_path)
         table = table[~table["Pat-ID"].str.startswith("AD")]
-        for w in table['Pat-ID']:
-            print(table.loc[table['Pat-ID'] == w, 'PEEP'].values[0])
+        table = table.set_index("Pat-ID")
+        for w in table.index:
+            print(table.loc[w, "PEEP"])
             
             MLMmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLM' / w / f"{w}_images_part_sb.mat")
             key = list(MLMmat.keys())[3]
-            MLMrgb = self.get_norm_rgb(MLMmat[key])
-            print('MLM: ' + str(MLMrgb.shape))
+            MLM = self.get_norm(MLMmat[key], "MLM")
+            print('MLM: ' + str(MLM.shape))
 
             pMLMmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLM' / w / f"{w}_pressure_sb.mat")
             pkey = list(pMLMmat.keys())[3]
@@ -38,17 +39,14 @@ class CleanZone:
             print(vkey)
             print('vMLM: ' + str(vMLMmat[vkey].shape))
 
-            self.save_npz(MLMrgb, pMLMmat[pkey], vMLMmat[vkey], w, table, 'MLMeit')
+            self.save_npz(MLM, pMLMmat[pkey], vMLMmat[vkey], w, table, 'MLMeit')
             
-            del MLMrgb, MLMmat, pMLMmat, vMLMmat, pkey, vkey, key
-            gc.collect()
+            del MLM, MLMmat, pMLMmat, vMLMmat, pkey, vkey, key
 
             TITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / w / f"{w}_images_part_tit.mat")
             key = list(TITmat.keys())[3]
-            print("read tit")
-            TITrgb = self.get_norm_rgb(TITmat[key])
-            print('TIT: ' + str(TITrgb.shape))
-
+            TIT = self.get_norm(TITmat[key], "TIT")
+            print('TIT: ' + str(TIT.shape))
             
             pTITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / w / f"{w}_pressure_tit.mat")
             pkey = list(pTITmat.keys())[3]
@@ -61,62 +59,72 @@ class CleanZone:
             print('vTIT: ' + str(vTITmat[vkey].shape))
 
             print("start save")
-            self.save_npz(TITrgb, pTITmat[pkey], vTITmat[vkey], w, table, 'TITeit')
+            self.save_npz(TIT, pTITmat[pkey], vTITmat[vkey], w, table, 'TITeit')
             print("finish save")
-            del TITmat, TITrgb, pTITmat, vTITmat, pkey, vkey, key
-            gc.collect()
+            del TITmat, TIT, pTITmat, vTITmat, pkey, vkey, key
 
             save_path = Path(self.input_path) / 'clean' / w
             save_path.mkdir(parents = True, exist_ok = True)
+            row = table.loc[w]
             np.savez(
-                save_path / f"table.npz",
-                Pat_ID = w,
-                sex = table.loc[table['Pat-ID'] == w, 'sex'].values[0],
-                age = table.loc[table['Pat-ID'] == w, 'age'].values[0],
-                BMI = table.loc[table['Pat-ID'] == w, 'BMI'].values[0],
-                weight_kg = table.loc[table['Pat-ID'] == w, 'weight (kg)'].values[0],
-                height_cm = table.loc[table['Pat-ID'] == w, 'height (cm)'].values[0],
-                smoke = table.loc[table['Pat-ID'] == w, 'smoke'].values[0],
-                Ppeak = table.loc[table['Pat-ID'] == w, 'Ppeak'].values[0],
-                Pmean = table.loc[table['Pat-ID'] == w, 'Pmean'].values[0],
-                targetPEEP = table.loc[table['Pat-ID'] == w, 'PEEP'].values[0]
+                save_path / "table.npz",
+                Pat_ID=w,
+                sex=row["sex"],
+                age=row["age"],
+                BMI=row["BMI"],
+                weight_kg=row["weight (kg)"],
+                height_cm=row["height (cm)"],
+                smoke=row["smoke"],
+                Ppeak=row["Ppeak"],
+                Pmean=row["Pmean"],
+                targetPEEP=row["PEEP"]
             )
 
 
-    def get_norm_rgb(self, arr):
-        """
-        Takes: an array arr of an EIT image with the shape (32,32,N)
-        Returns: an array of an upsampled and normalizet EIT image with added rgb  and transposed shape = (N,3,224,224)
-        """
-        arr = np.transpose(arr, (2,0,1))
-        rgb = np.repeat(arr[:, None, :, :], 3,  axis = 1)
-        rgb = torch.from_numpy(rgb).float()
-        rgb = F.interpolate(
-            rgb,
-            size=(224, 224),
-            mode="bilinear",
-            align_corners=False
-        )
-        print("bevor norm")
-        mean = rgb.mean(dim=(0, 2, 3), keepdim=True)
-        std  = rgb.std(dim=(0, 2, 3), keepdim=True) + 1e-6
-        print("right bevor norm")
-        rgb.sub_(mean).div_(std)
-        print('after norm')
-
-        N = arr.shape[0]
-        out = []
-        return rgb
+    def get_norm(self, arr, modality:str):
+        arr = np.transpose(arr, (2,0,1)).astype(np.float32)
+        if modality == "MLM":
+            arr = (arr - self.MLMmean) / (self.MLMstd + 1e-6)
+        else:
+            arr = (arr - self.TITmean) / (self.TITstd + 1e-6)
+        return arr
 
 
-    def save_npz(self, eitData, pData, vData, w, table, name):
+    def save_npz(self, arr, pData, vData, w, table, name):
             save_path = Path(self.input_path) / 'clean' / w
             save_path.mkdir(parents = True, exist_ok = True)
-            np.savez(
+            np.savez_compressed(
                 save_path / f"{name}.npz",
-                EITdata=eitData,
+                EITdata=arr,
                 pressureData=pData,
                 volumeData=vData,
-                patient_id=w,
-                targetPEEP=table.loc[table['Pat-ID'] == w, 'PEEP'].values[0]
             )
+
+    def get_global(self, typ: str):
+        spez = "sb" if typ == "MLM" else "tit"
+
+        total_sum = 0.0
+        total_sq_sum = 0.0
+        total_count = 0
+
+        table = pd.read_csv(self.input_path/'raw'/'MLM'/'peep_tabular_data.csv')
+        table = table[~table["Pat-ID"].str.startswith("AD")]
+
+        for w in table['Pat-ID']:
+            mat = scipy.io.loadmat(
+                self.input_path/'raw'/typ/w/f"{w}_images_part_{spez}.mat"
+            )
+            key = list(mat.keys())[3]
+            arr = np.transpose(mat[key], (2,0,1)).astype(np.float64)
+
+            total_sum += arr.sum()
+            total_sq_sum += np.square(arr).sum()
+            total_count += arr.size
+
+            del mat, arr
+
+        mean = total_sum / total_count
+        var = total_sq_sum / total_count - mean**2
+        std = np.sqrt(var) + 1e-6
+
+        return np.float32(mean), np.float32(std)
