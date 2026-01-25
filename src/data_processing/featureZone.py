@@ -2,10 +2,13 @@ import logging
 import numpy as np
 import pandas as pd
 from pathlib import Path
+import scipy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet50, ResNet50_Weights
+from typing import Tuple
+
 
 
 logging.basicConfig(
@@ -70,7 +73,7 @@ class FeatureZone:
         Two-layer LSTM for temporal aggregation of spatial features.
     """
 
-    def __init__(self, path:Path) -> None:
+    def __init__(self, path:Path, split:str) -> None:
         """
         Selects a CUDA-capable NVIDIA GPU if available; otherwise, uses the CPU.
         Initializes the ResNet and LSTM networks for feature extraction.
@@ -79,16 +82,85 @@ class FeatureZone:
         path : Path
             Path to the input data.
         """
-        self.path = Path(path)
+        self.path = path
+        self.split = split
+
+        if split == "train":
+            self.MLMmean, self.MLMstd, self.MLMpmean, self.MLMpstd, self.MLMvmean, self.MLMvstd = self.get_global("MLM")
+            self.TITmean, self.TITstd, self.TITpmean, self.TITpstd, self.TITvmean, self.TITvstd = self.get_global("TIT")
+
+            self.amean, self.astd, self.bmean, self.bstd, self.wmean, self.wstd, self.hmean, self.hstd, self.pmean, self.pstd = self.get_tglobal()
+
+            spath = self.path / "feature" / "stats"
+            spath.mkdir(parents=True, exist_ok=True)
+            np.savez_compressed(
+                spath / "train_stats.npz",
+
+                MLMmean = self.MLMmean,
+                MLMstd = self.MLMstd,
+                MLMpmean = self.MLMpmean,
+                MLMpstd = self.MLMpstd,
+                MLMvmean = self.MLMvmean,
+                MLMvstd = self.MLMvstd,
+
+                TITmean =self.TITmean,
+                TITstd = self.TITstd,
+                TITpmean =self.TITpmean,
+                TITpstd = self.TITpstd,
+                TITvmean = self.TITvmean,
+                TITvstd = self.TITvstd,
+
+                amean = self.amean,
+                astd = self.astd,
+                bmean = self.bmean,
+                bstd = self.bstd,
+                wmean = self.wmean,
+                wstd = self.wstd,
+                hmean = self.hmean,
+                hstd = self.hstd,
+                pmean = self.pmean,
+                pstd = self.pstd,
+            )
+        else:
+            spath = self.path / "feature" / "stats"
+            assert spath.exists(), (
+                "train_stats.npz not found. "
+                "You must run FeatureZone with split='train' first."
+            )
+
+            stats = np.load(spath / "train_stats.npz")
+
+            self.MLMmean = stats["MLMmean"]
+            self.MLMstd  = stats["MLMstd"]
+            self.MLMpmean = stats["MLMpmean"]
+            self.MLMpstd  = stats["MLMpstd"]
+            self.MLMvmean = stats["MLMvmean"]
+            self.MLMvstd  = stats["MLMvstd"]
+
+            self.TITmean = stats["TITmean"]
+            self.TITstd  = stats["TITstd"]
+            self.TITpmean = stats["TITpmean"]
+            self.TITpstd  = stats["TITpstd"]
+            self.TITvmean = stats["TITvmean"]
+            self.TITvstd  = stats["TITvstd"]
+
+            self.amean = stats["amean"]
+            self.astd  = stats["astd"]
+            self.bmean = stats["bmean"]
+            self.bstd  = stats["bstd"]
+            self.wmean = stats["wmean"]
+            self.wstd  = stats["wstd"]
+            self.hmean = stats["hmean"]
+            self.hstd  = stats["hstd"]
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"Using device: {self.device}")
 
         logger.info("def ResNet")
-        self.resnet = self.get_res().to(self.device)
+        self.resnet = self.get_res().to(self.device) #Init encoder from ResNet
 
         logger.info("def LSTM")
-        self.lstm = torch.nn.LSTM(
+        self.lstm = torch.nn.LSTM(  #Init encoder from LSTM
             input_size=2048,
             hidden_size=512,
             num_layers=2,
@@ -104,7 +176,7 @@ class FeatureZone:
 
         To enable comparative feature evaluation, two variants are generated:
         a 3D version, where grayscale images are replicated across all three RGB channels,
-        and a VD version, where the second channel represents pressure and the third channel
+        and a VP version, where the second channel represents pressure and the third channel
         represents volume from the time series to construct RGB images.
 
         Each MLM and titration feature set is saved to a file in a new feature directory.
@@ -116,73 +188,227 @@ class FeatureZone:
         self.resnet.eval()
         self.lstm.eval()
 
-        csv_path = self.path/ 'raw' / 'MLM' / 'peep_tabular_data.csv'
-        table = pd.read_csv(csv_path)
-        table = table[~table["Pat-ID"].str.startswith("AD")]
-        table = table.set_index("Pat-ID")
-        for id in table.index:
-            logger.info("Starting itteration for: " + str(table.loc[id, "PEEP"]))
+        pat_folders = sorted([f for f in (self.path / "clean" / self.split).iterdir() if f.is_dir()])
+        for p in pat_folders:
+            logger.info("Starting iteration for: " + str(p.name))
             logger.info("3D")
             logger.info("MLM")
-            mlmPath = self.path / "clean" / id / "MLMeit.npz"
+            mlmPath = p / "MLMeit.npz"
 
             if not mlmPath.exists():
                 logger.warning(f"Missing file, skipping: {mlmPath}")
                 continue
 
             mlmData = np.load(mlmPath)
-            mlmRes3D = self.extract_resnet_features3D(mlmData['EITdata'])
-            mlmLSTM3D = self.extract_LSTM_features(mlmRes3D)
+            mlmRes3D = self.extract_resnet_features3D((mlmData['EITdata'] - self.MLMmean) / (self.MLMstd + 1e-6))
+            mlmLSTM3D = self.extract_LSTM_features(mlmRes3D).cpu()
 
             logger.info("TIT")
-            titPath = self.path / "clean" / id / "TITeit.npz"
+            titPath = p / "TITeit.npz"
             titData = np.load(titPath)
-            titRes3D = self.extract_resnet_features3D(titData['EITdata'])
-            titLSTM3D = self.extract_LSTM_features(titRes3D)
+            titRes3D = self.extract_resnet_features3D((titData['EITdata'] - self.TITmean) / (self.TITstd + 1e-6))
+            titLSTM3D = self.extract_LSTM_features(titRes3D).cpu()
 
             logger.info("save")
-            save_path = Path(self.path) / 'feature' / "3D"
+            save_path = Path(self.path) / 'feature' / "3D" / self.split
             save_path.mkdir(parents = True, exist_ok = True)
 
             np.savez_compressed(
-                save_path / f"3Res_{id}.npz",
-                patient_id = id,
+                save_path / f"{p.name}_Res.npz",
+                patient_id = p.name,
                 mlm = mlmRes3D.cpu().numpy(),
                 tit = titRes3D.cpu().numpy(),
             )
 
             np.savez_compressed(
-                save_path / f"3DLSTM_{id}.npz",
-                patient_id = id,
+                save_path / f"{p.name}_LSTM.npz",
+                patient_id = p.name,
                 mlm = mlmLSTM3D.cpu().numpy(),
                 tit = titLSTM3D.cpu().numpy(),
             )
             del mlmLSTM3D, titLSTM3D
 
             logger.info("vp")
-            mlmResVP = self.extract_resnet_featuresVP(mlmData['EITdata'], mlmData['pressureData'], mlmData['volumeData'])
-            mlmLSTMVP = self.extract_LSTM_features(mlmResVP)
+            mlmResVP = self.extract_resnet_featuresVP(
+                (mlmData['EITdata'] - self.MLMmean) / (self.MLMstd + 1e-6), 
+                (mlmData['pressureData'] - self.MLMpmean) / (self.MLMpstd + 1e-6), 
+                (mlmData['volumeData'] - self.MLMvmean) / (self.MLMvstd + 1e-6)
+                )
+            mlmLSTMVP = self.extract_LSTM_features(mlmResVP).cpu()
 
-            titResVP = self.extract_resnet_featuresVP(titData['EITdata'], titData['pressureData'], titData['volumeData'])
-            titLSTMVP = self.extract_LSTM_features(titResVP)
+            titResVP = self.extract_resnet_featuresVP(
+                (titData['EITdata'] - self.TITmean) / (self.TITstd + 1e-6), 
+                (titData['pressureData'] - self.TITpmean) / (self.TITpstd + 1e-6), 
+                (titData['volumeData'] - self.TITvmean) / (self.TITvstd + 1e-6)
+                )
+            titLSTMVP = self.extract_LSTM_features(titResVP).cpu()
 
             logger.info("save")
-            save_path = Path(self.path) / 'feature' / "VD"
+            save_path = self.path / 'feature' / "VP" / self.split
             save_path.mkdir(parents = True, exist_ok = True)
 
             np.savez_compressed(
-                save_path / f"VDRes_{id}.npz",
-                patient_id = id,
+                save_path / f"{p.name}_Res.npz",
+                patient_id = p.name,
                 mlm = mlmResVP.cpu().numpy(),
                 tit = titResVP.cpu().numpy(),
             )
 
             np.savez_compressed(
-                save_path / f"VDLSTm_{id}.npz",
-                patient_id = id,
+                save_path / f"{p.name}_LSTM.npz",
+                patient_id = p.name,
                 mlm = mlmLSTMVP.cpu().numpy(),
                 tit = titLSTMVP.cpu().numpy(),
             )
+
+            path = p / "table.npz"
+            data = np.load(path)
+
+            save_path = self.path / 'feature' / "table" / self.split
+            save_path.mkdir(parents = True, exist_ok = True)
+
+
+            np.savez_compressed(
+                save_path / f"{p.name}.npz",
+                sex = data['sex'],
+                age = (data['age']- self.amean) / (self.astd + 1e-6),
+                BMI = (data['BMI']- self.bmean) / (self.bstd + 1e-6),
+                weight = (data['weight'] - self.wmean) / (self.wstd + 1e-6),
+                height = (data['height'] - self.hmean) / (self.hstd + 1e-6),
+                smoke = data['smoke'],
+                targetPEEP = (data['targetPEEP'] - self.pmean) / (self.pstd + 1e-6) #Nach dem Training Rücktransformation
+            )
+
+
+    def get_tglobal(self) -> Tuple[np.float32, np.float32, np.float32, np.float32, np.float32, np.float32, np.float32, np.float32, np.float32, np.float32]:
+        asum = bsum = wsum = hsum = psum = 0.0
+        asq_sum = bsq_sum = wsq_sum = hsq_sum = psq_sum = 0.0
+        count = 0
+
+        pat_folders = sorted([f for f in (self.path / "clean" / self.split).iterdir() if f.is_dir()])
+        assert len(pat_folders) != 0, "No patient folders found in the path!"
+        for p in pat_folders:
+            path = p / "table.npz"
+            
+            if not path.exists():
+                logger.warning(f"Missing file, skipping: {path}")
+                continue
+
+            data = np.load(path)
+
+            asum += data['age'].sum()
+            asq_sum += np.square(data['age']).sum()
+            bsum += data['BMI'].sum()
+            bsq_sum += np.square(data['BMI']).sum()
+            wsum += data['weight'].sum()
+            wsq_sum += np.square(data['weight']).sum()
+            hsum += data['height'].sum()
+            hsq_sum += np.square(data['height']).sum()
+            psum += data['targetPEEP'].sum()
+            psq_sum += np.square(data['targetPEEP']).sum()
+            count += 1
+
+        if count == 0:
+            logger.warning(f"No data found for table")
+            return 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0
+        
+        amean = asum / count
+        var = asq_sum / count - amean**2
+        var = np.maximum(var, 0.0)
+        astd = np.sqrt(var) + 1e-6
+        bmean = bsum / count
+        var = bsq_sum / count - bmean**2
+        var = np.maximum(var, 0.0)
+        bstd = np.sqrt(var) + 1e-6
+        wmean = wsum / count
+        var = wsq_sum / count - wmean**2
+        var = np.maximum(var, 0.0)
+        wstd = np.sqrt(var) + 1e-6
+        hmean = hsum / count
+        var = hsq_sum / count - hmean**2
+        var = np.maximum(var, 0.0)
+        hstd = np.sqrt(var) + 1e-6
+        pmean = psum / count
+        var = psq_sum / count - pmean**2
+        var = np.maximum(var, 0.0)
+        pstd = np.sqrt(var) + 1e-6
+
+        return np.float32(amean), np.float32(astd), np.float32(bmean), np.float32(bstd), np.float32(wmean), np.float32(wstd), np.float32(hmean), np.float32(hstd), np.float32(pmean), np.float32(pstd)
+    
+    def get_global(self, modality:str) -> Tuple[np.float32, np.float32, np.float32, np.float32, np.float32, np.float32]:
+        """
+        Iterrating over all raw data picture arrays for the longest breath or for titration. 
+        Collect total sum, total square sum and count the total number of pixels.
+        Returning the per pixel mean and standart diviation
+        
+        Input:
+        modality : str
+            dataset identifier ("MLM", "TIT")
+
+        Returns:
+        arr_mean : numpy.float32
+            global scaler
+        arr_std : numpy.float32
+            global scalar
+        p_mean : numpy.float32
+            global scaler
+        p_std : numpy.float32
+            global scalar
+        v_mean : numpy.float32
+            global scaler
+        v_std : numpy.float32
+            global scalar
+        """
+        logger.info("Start get_global for: " + modality)
+
+        arr_sum = p_sum = v_sum = 0.0
+        arr_sq_sum = p_sq_sum = v_sq_sum = 0.0
+        arr_count = p_count = v_count = 0
+
+        pat_folders = sorted([f for f in (self.path / "clean" / self.split).iterdir() if f.is_dir()])
+        for p in pat_folders:
+            path = p / f"{modality}eit.npz"
+            
+            if not path.exists():
+                logger.warning(f"Missing file, skipping: {path}")
+                continue
+
+            data = np.load(path)
+
+            arr_sum += data['EITdata'].sum()
+            arr_sq_sum += np.square(data['EITdata']).sum()
+            arr_count += data['EITdata'].size
+ 
+            p_sum += data['pressureData'].sum()
+            p_sq_sum += np.square(data['pressureData']).sum()
+            p_count += data['pressureData'].size
+ 
+            v_sum += data['volumeData'].sum()
+            v_sq_sum += np.square(data['volumeData']).sum()
+            v_count += data['volumeData'].size
+
+            del data
+
+        if arr_count == 0:
+            logger.warning(f"No data found for {modality}")
+            return 0.0, 1.0, 0.0, 1.0, 0.0, 1.0
+
+        arr_mean = arr_sum / arr_count
+        arr_var = arr_sq_sum / arr_count - arr_mean**2
+        arr_var = np.maximum(arr_var, 0.0)
+        arr_std = np.sqrt(arr_var) + 1e-6
+
+        p_mean = p_sum / p_count
+        p_var = p_sq_sum / p_count - p_mean**2
+        p_var = np.maximum(p_var, 0.0)
+        p_std = np.sqrt(p_var) + 1e-6
+
+        v_mean = v_sum / v_count
+        v_var = v_sq_sum / v_count - v_mean**2
+        v_var = np.maximum(v_var, 0.0)
+        v_std = np.sqrt(v_var) + 1e-6
+
+        return np.float32(arr_mean), np.float32(arr_std), np.float32(p_mean), np.float32(p_std), np.float32(v_mean), np.float32(v_std)
 
 
     def get_res(self) -> nn.Module:
@@ -202,7 +428,6 @@ class FeatureZone:
         for p in resnet.parameters():
             p.requires_grad = False
         return resnet
-
 
     def extract_resnet_features3D(self, frames:np.ndarray, batch_size:int=256) -> torch.Tensor:
         """
@@ -255,32 +480,6 @@ class FeatureZone:
 
         return torch.cat(spatial_features, dim=0)
     
-
-    def extract_LSTM_features(self, spatial_seq:torch.Tensor) -> torch.Tensor:
-        """
-        Extracts a fixed-length temporal feature representation from a sequence
-        of spatial features using an LSTM.
-
-        The input sequence of per-frame feature vectors is treated as a temporal sequence
-        and passed through an LSTM. The final hidden state of the last LSTM layer is
-        returned as a compact representation of the entire sequence.
-
-        Input:
-        spatial_seq : torch.Tensor
-            Input sequence of shape (T, 2048), where T is the number of time steps.
-
-        Returns:
-        torch.Tensor
-            Tensor of shape (H,), where H is the LSTM hidden size (e.g., 512), representing
-            the encoded temporal feature.
-        """
-        logger.info("LSTM features")
-        spatial_seq = spatial_seq.to(self.device)
-        seq = spatial_seq.unsqueeze(0)              # (1, T, 2048)
-        out, (h_n, c_n) = self.lstm(seq)
-
-        return h_n[-1].squeeze(0)                   # (512,)
-
 
     def extract_resnet_featuresVP(self, frames:np.ndarray, pre:np.ndarray, vol:np.ndarray, batch_size=256) -> torch.Tensor:
         """
@@ -346,3 +545,30 @@ class FeatureZone:
                 spatial_features.append(features)
 
         return torch.cat(spatial_features, dim=0)
+
+
+    def extract_LSTM_features(self, spatial_seq:torch.Tensor) -> torch.Tensor:
+        """
+        Extracts a fixed-length temporal feature representation from a sequence
+        of spatial features using an LSTM.
+
+        The input sequence of per-frame feature vectors is treated as a temporal sequence
+        and passed through an LSTM. The final hidden state of the last LSTM layer is
+        returned as a compact representation of the entire sequence.
+
+        Input:
+        spatial_seq : torch.Tensor
+            Input sequence of shape (T, 2048), where T is the number of time steps.
+
+        Returns:
+        torch.Tensor
+            Tensor of shape (H,), where H is the LSTM hidden size (e.g., 512), representing
+            the encoded temporal feature.
+        """
+        logger.info("LSTM features")
+        spatial_seq = spatial_seq.to(self.device)
+        seq = spatial_seq.unsqueeze(0)              # (1, T, 2048)
+        out, (h_n, c_n) = self.lstm(seq)
+
+        return h_n[-1]                             # (1, 512)
+    

@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import logging
 from pathlib import Path
-from typing import Tuple
 import scipy
 
 logging.basicConfig(
@@ -67,8 +66,6 @@ class CleanZone:
         Init global mean and std for MLM and TIT bevor running the clean stage.
         """
         self.input_path = input_path
-        self.MLMmean, self.MLMstd, self.MLMpmean, self.MLMpstd, self.MLMvmean, self.MLMvstd = self.get_global("MLM")
-        self.TITmean, self.TITstd, self.TITpmean, self.TITpstd, self.TITvmean, self.TITvstd = self.get_global("Titration")
 
 
     def run(self) -> None:
@@ -87,7 +84,7 @@ class CleanZone:
         table = table[~table["Pat-ID"].str.startswith("AD")]
         table = table.set_index("Pat-ID")
         for id in table.index:
-            logger.info("Starting itteration for: " + str(table.loc[id, "PEEP"]))
+            logger.info("Starting itteration for: " + str(id))
 
             path = self.input_path / 'raw' / 'MLM' / id / f"{id}_images_part_sb.mat"
 
@@ -97,15 +94,14 @@ class CleanZone:
                 
             MLMmat = scipy.io.loadmat(path)
             key = list(MLMmat.keys())[3]
-            MLM = self.get_norm(MLMmat[key], "MLM")
+            MLM = np.transpose(MLMmat[key], (2,0,1)).astype(np.float32)
 
             pMLMmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLM' / id / f"{id}_pressure_sb.mat")
             pkey = list(pMLMmat.keys())[3]
-            pMLM = (pMLMmat[pkey] - self.MLMpmean) / (self.MLMpstd + 1e-6)
-
+            pMLM = pMLMmat[pkey].astype(np.float32) 
             vMLMmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLM' / id / f"{id}_volume_sb.mat")
             vkey = list(vMLMmat.keys())[3]
-            vMLM = (vMLMmat[vkey] - self.MLMvmean) / (self.MLMvstd + 1e-6)
+            vMLM = vMLMmat[vkey].astype(np.float32) 
         
             logger.info("Save MLM")
             self.save_npz(MLM, pMLM, vMLM, id, 'MLMeit')
@@ -114,60 +110,43 @@ class CleanZone:
 
             TITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / id / f"{id}_images_part_tit.mat")
             key = list(TITmat.keys())[3]
-            TIT = self.get_norm(TITmat[key], "TIT")
+            TIT = np.transpose(TITmat[key], (2,0,1)).astype(np.float32)
             
             pTITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / id / f"{id}_pressure_tit.mat")
             pkey = list(pTITmat.keys())[3]
-            pTIT = (pTITmat[pkey] - self.TITpmean) / (self.TITpstd + 1e-6)
-
+            pTIT = pTITmat[pkey].astype(np.float32)
             vTITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / id / f"{id}_volume_tit.mat")
             vkey = list(vTITmat.keys())[3]
-            vTIT = (vTITmat[vkey] - self.TITvmean) / (self.TITvstd + 1e-6)
+            vTIT = vTITmat[vkey].astype(np.float32)
 
 
             logger.info("Save TIT")
             self.save_npz(TIT, pTIT, vTIT, id, 'TITeit')
             del TITmat, TIT, pTITmat, vTITmat, pkey, vkey, key
+            
 
-            logger.info("save table row for this patient (Pat_ID, sex, age, BMI, weight, height, smoke, Ppeak, Pmean, PEEP)")
-            save_path = Path(self.input_path) / 'clean' / id
+            logger.info("save table")
+
+            sex_map = {"male": 0, "female": 1}
+            smoke_map = {
+                "Never":   [1, 0, 0],
+                "Former":  [0, 1, 0],
+                "Current": [0, 0, 1]
+                }
+
+            save_path = self.input_path / 'clean' / id
             save_path.mkdir(parents = True, exist_ok = True)
             row = table.loc[id]
             np.savez(
                 save_path / "table.npz",
-                Pat_ID=id,
-                sex=row["sex"],
+                sex=sex_map.get(row["sex"]),
                 age=row["age"],
                 BMI=row["BMI"],
-                weight_kg=row["weight (kg)"],
-                height_cm=row["height (cm)"],
-                smoke=row["smoke"],
-                Ppeak=row["Ppeak"],
-                Pmean=row["Pmean"],
+                weight=row["weight (kg)"],
+                height=row["height (cm)"],
+                smoke=smoke_map.get(row["smoke"]),
                 targetPEEP=row["PEEP"]
             )
-        logger.info("Finish Cleanstage")
-
-    def get_norm(self, arr:np.ndarray, modality:str) -> np.ndarray:
-        """
-        Takes a raw picture array and normalized the pixel for the input into a resnet50 CNN.
-        
-        Input:
-        arr : np.ndarray
-        modality : str
-            dataset identifier ("TIT" or "MLM")
-
-        Returns:       
-        arr : np.ndarray
-        """
-
-        arr = np.transpose(arr, (2,0,1)).astype(np.float32)
-        if modality == "MLM":
-            arr = (arr - self.MLMmean) / (self.MLMstd + 1e-6)
-        else:
-            arr = (arr - self.TITmean) / (self.TITstd + 1e-6)
-        return arr
-
 
     def save_npz(self, arr:np.ndarray, pData:np.ndarray, vData:np.ndarray, id:str, modality:str) -> None:
         """
@@ -194,92 +173,3 @@ class CleanZone:
             volumeData=vData,
         )
 
-    def get_global(self, modality:str) -> Tuple[np.float32, np.float32, np.float32, np.float32, np.float32, np.float32]:
-        """
-        Iterrating over all raw data picture arrays for the longest breath or for titration. 
-        Collect total sum, total square sum and count the total number of pixels.
-        Returning the per pixel mean and standart diviation
-        
-        Input:
-        modality : str
-            dataset identifier ("MLM", "TIT")
-
-        Returns:
-        arr_mean : numpy.float32
-            global scaler
-        arr_std : numpy.float32
-            global scalar
-        p_mean : numpy.float32
-            global scaler
-        p_std : numpy.float32
-            global scalar
-        v_mean : numpy.float32
-            global scaler
-        v_std : numpy.float32
-            global scalar
-        """
-        logger.info("Start get_global for: " + modality)
-
-        spez = "sb" if modality == "MLM" else "tit"
-
-        arr_sum = p_sum = v_sum = 0.0
-        arr_sq_sum = p_sq_sum = v_sq_sum = 0.0
-        arr_count = p_count = v_count =0
-
-        table = pd.read_csv(self.input_path/'raw'/'MLM'/'peep_tabular_data.csv')
-        table = table[~table["Pat-ID"].str.startswith("AD")]
-
-        for id in table['Pat-ID']:
-            path = self.input_path/'raw'/modality/id/f"{id}_images_part_{spez}.mat"
-
-            if not path.exists():
-                logger.warning(f"Missing file, skipping: {path}")
-                continue
-
-            mat = scipy.io.loadmat(path)
-            key = list(mat.keys())[3]
-
-            arr_sum += mat[key].sum()
-            arr_sq_sum += np.square(mat[key]).sum()
-            arr_count += mat[key].size
-
-            del mat, key
-
-            mat = scipy.io.loadmat(
-                self.input_path/'raw'/modality/id/f"{id}_pressure_{spez}.mat"
-            )
-            key = list(mat.keys())[3]
-
-            p_sum += mat[key].sum()
-            p_sq_sum += np.square(mat[key]).sum()
-            p_count += mat[key].size
-
-            del mat, key
-
-            mat = scipy.io.loadmat(
-                self.input_path/'raw'/modality/id/f"{id}_volume_{spez}.mat"
-            )
-            key = list(mat.keys())[3]
-
-            v_sum += mat[key].sum()
-            v_sq_sum += np.square(mat[key]).sum()
-            v_count += mat[key].size
-
-            del mat, key
-
-        arr_mean = arr_sum / arr_count
-        arr_var = arr_sq_sum / arr_count - arr_mean**2
-        arr_var = np.maximum(arr_var, 0.0)
-        arr_std = np.sqrt(arr_var) + 1e-6
-
-        p_mean = p_sum / p_count
-        p_var = p_sq_sum / p_count - p_mean**2
-        p_var = np.maximum(p_var, 0.0)
-        p_std = np.sqrt(p_var) + 1e-6
-
-        v_mean = v_sum / v_count
-        v_var = v_sq_sum / v_count - v_mean**2
-        v_var = np.maximum(v_var, 0.0)
-        v_std = np.sqrt(v_var) + 1e-6
-
-        return np.float32(arr_mean), np.float32(arr_std), np.float32(p_mean), np.float32(p_std), np.float32(v_mean), np.float32(v_std)

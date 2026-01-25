@@ -4,7 +4,7 @@ from typing import Union
 
 from cleanZone import CleanZone
 from featureZone import FeatureZone
-
+from splitData import SplitData
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -21,12 +21,20 @@ class Workflow:
 
     def run(self) -> None:
         logger.info("\n##########\nStart Clean Zone\n##########")
+        
+        #CleanZone(self.input_path).run()
+        
+        logger.info("\n##########\nStart Split Data\n##########")
 
-        CleanZone(self.input_path).run()
+        
+        #SplitData(self.input_path).run()
+   
 
         logger.info("\n##########\nStart Feature Zone\n##########")
 
-        FeatureZone(self.input_path).run()
+        FeatureZone(self.input_path, "train").run()
+        FeatureZone(self.input_path, "val").run()
+        FeatureZone(self.input_path, "test").run()
 
         logger.info("\n##########\nFinished Process\n##########")
 
