@@ -1,8 +1,6 @@
 import logging
 import numpy as np
-import pandas as pd
 from pathlib import Path
-import scipy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -152,6 +150,8 @@ class FeatureZone:
             self.wstd  = stats["wstd"]
             self.hmean = stats["hmean"]
             self.hstd  = stats["hstd"]
+            self.pmean = stats["pmean"]
+            self.pstd  = stats["pstd"]
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"Using device: {self.device}")
@@ -270,14 +270,20 @@ class FeatureZone:
 
             np.savez_compressed(
                 save_path / f"{p.name}.npz",
-                sex = data['sex'],
-                age = (data['age']- self.amean) / (self.astd + 1e-6),
-                BMI = (data['BMI']- self.bmean) / (self.bstd + 1e-6),
-                weight = (data['weight'] - self.wmean) / (self.wstd + 1e-6),
-                height = (data['height'] - self.hmean) / (self.hstd + 1e-6),
-                smoke = data['smoke'],
-                targetPEEP = (data['targetPEEP'] - self.pmean) / (self.pstd + 1e-6) #Nach dem Training Rücktransformation
+
+                sex    = np.array([data['sex']], dtype=np.float32),
+                age    = np.array([(data['age'] - self.amean) / (self.astd + 1e-6)], dtype=np.float32),
+                BMI    = np.array([(data['BMI'] - self.bmean) / (self.bstd + 1e-6)], dtype=np.float32),
+                weight = np.array([(data['weight'] - self.wmean) / (self.wstd + 1e-6)], dtype=np.float32),
+                height = np.array([(data['height'] - self.hmean) / (self.hstd + 1e-6)], dtype=np.float32),
+                smoke  = np.array([data['smoke']], dtype=np.float32),
+
+                targetPEEP = np.array(
+                    [(data['targetPEEP'] - self.pmean) / (self.pstd + 1e-6)],
+                    dtype=np.float32
+                ),
             )
+
 
 
     def get_tglobal(self) -> Tuple[np.float32, np.float32, np.float32, np.float32, np.float32, np.float32, np.float32, np.float32, np.float32, np.float32]:

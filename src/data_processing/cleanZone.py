@@ -22,18 +22,11 @@ class CleanZone:
 
     Pipeline Overview
     -----------------
-    1. **Global Statistics Calculation**
-       - Iterates over all patients in a dataset (MLM or TIT).
-       - Computes per-pixel mean and standard deviation for EIT images.
-       - Computes mean and standard deviation for pressure and volume time series.
-       - These scalers are used for normalization of each patient's data.
 
     2. **Patient-wise Data Preprocessing**
        For each patient:
        - Load raw `.mat` files for EIT images, pressure, and volume.
-       - Normalize using the global statistics computed in step 1.
        - Convert EIT images to shape `(T, H, W)` and standardize per pixel.
-       - Normalize pressure and volume series independently.
 
     3. **Saving Cleaned Data**
        - Saves processed data in a structured per-patient folder under `clean/`.
@@ -95,8 +88,9 @@ class CleanZone:
             MLMmat = scipy.io.loadmat(path)
             key = list(MLMmat.keys())[3]
             MLM = np.transpose(MLMmat[key], (2,0,1)).astype(np.float32)
+            MLM = np.nan_to_num(MLM, nan=0.0)
 
-            pMLMmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLM' / id / f"{id}_pressure_sb.mat")
+            pMLMmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLM' / id / f"{id}_pressure_filtered_sb.mat")
             pkey = list(pMLMmat.keys())[3]
             pMLM = pMLMmat[pkey].astype(np.float32) 
             vMLMmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLM' / id / f"{id}_volume_sb.mat")
@@ -111,8 +105,9 @@ class CleanZone:
             TITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / id / f"{id}_images_part_tit.mat")
             key = list(TITmat.keys())[3]
             TIT = np.transpose(TITmat[key], (2,0,1)).astype(np.float32)
+            TIT = np.nan_to_num(TIT, nan=0.0)
             
-            pTITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / id / f"{id}_pressure_tit.mat")
+            pTITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / id / f"{id}_pressure_filtered_tit.mat")
             pkey = list(pTITmat.keys())[3]
             pTIT = pTITmat[pkey].astype(np.float32)
             vTITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / id / f"{id}_volume_tit.mat")

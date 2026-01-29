@@ -1,9 +1,4 @@
-import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
-import matplotlib.pyplot as plt
-import numpy as np
 
 class MLP(nn.Module):
     def __init__(self, input_size, output_size, hidden_sizes, dropout_rate=0.1): #Hidden Layer = 2 begründen/ testen
