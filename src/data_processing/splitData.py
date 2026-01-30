@@ -12,9 +12,11 @@ logging.basicConfig(
 
 logger = logging.getLogger("splitData")
 
+
 class SplitData():
     def __init__(self, path:Path):
         self.path = Path(path)
+
 
     def run(self):
         table = pd.read_csv(self.path / "raw" / "MLM"/ "peep_tabular_data.csv")
@@ -61,9 +63,6 @@ class SplitData():
             shutil.move(self.path / "clean" / id, te_path)
 
 
-
-
-
     def split(self, pats:np.array, n_val:int, n_test:int) -> Tuple[np.array, np.array, np.array]:
         pats = np.array(pats)
         np.random.seed(42)
@@ -74,47 +73,3 @@ class SplitData():
         test = pats[:n_test]
 
         return train, val, test
-
-    def get_test_data(self) -> Tuple[dict, np.array]:
-        table = pd.read_csv(self.path / "raw" / "MLM"/ "peep_tabular_data.csv")
-        table = table[~table["Pat-ID"].str.startswith("AD")]
-
-        # Dummy-Daten mit echten PEEP-Werten
-        data = {pid: {"target": peep} for pid, peep in zip(table["Pat-ID"], table["PEEP"])}
-
-        pat_ids = table["Pat-ID"].to_numpy()
-        return data, pat_ids
-
-
-
-    def get_data(self) -> Tuple[dict, np.array]:
-        table = pd.read_csv(self.path / "raw" / "MLM"/ "peep_tabular_data.csv")
-        table = table[~table["Pat-ID"].str.startswith("AD")]
-        pat = table.set_index("Pat-ID")
-
-        data = {} 
-        sex_map = {"male": 0, "female": 1}
-        smoke_map = {"Never": 0, "Former": 1, "Current": 2}
-
-        for pid, info in pat.iterrows():
-            f_path = self.path / "clean" / pid / f"3DLSTM_{pid}.npz"
-            if not f_path.exists():
-                logger.warning(f"Missing file, skipping: {f_path}")
-                continue
-
-            feat = np.load(f_path)
-            data[pid] = {
-                "tit" : feat["tit"],
-                "mlm" : feat["mlm"],
-                "tab" : {
-                    "sex" : sex_map.get(info["sex"]),
-                    "age" : info["age"],
-                    "BMI" : info["BMI"],
-                    "weight_kg" : info["weight (kg)"],
-                    "height_cm" : info["height (cm)"],
-                    "smoke" : smoke_map.get(info["smoke"]),
-                },
-                "target" : info["PEEP"]
-            }
-            
-        return data, list(data.keys())
