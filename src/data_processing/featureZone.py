@@ -87,8 +87,8 @@ class FeatureZone:
 
 
         if split == "train":
-            self.MLMmin, self.MLMmax, self.MLMpmean, self.MLMpstd, self.MLMvmean, self.MLMvstd = self.get_global("MLM")
-            self.TITmin, self.TITmax, self.TITpmean, self.TITpstd, self.TITvmean, self.TITvstd = self.get_global("TIT")
+            self.MLMmin, self.MLMmax, self.MLMpmean, self.MLMpstd, self.MLMpmin, self.MLMpmax, self.MLMvmean, self.MLMvstd, self.MLMvmin, self.MLMvmax = self.get_global("MLM")
+            self.TITmin, self.TITmax, self.TITpmean, self.TITpstd, self.TITpmin, self.TITpmax, self.TITvmean, self.TITvstd, self.TITvmin, self.TITvmax = self.get_global("TIT")
 
             self.amean, self.astd, self.bmean, self.bstd, self.wmean, self.wstd, self.hmean, self.hstd, self.pmean, self.pstd = self.get_tglobal()
 
@@ -103,8 +103,12 @@ class FeatureZone:
                 MLMmax = self.MLMmax,
                 MLMpmean = self.MLMpmean,
                 MLMpstd = self.MLMpstd,
+                MLMpmin = self.MLMpmin,
+                MLMpmax = self.MLMpmax,
                 MLMvmean = self.MLMvmean,
                 MLMvstd = self.MLMvstd,
+                MLMvmin = self.MLMvmin,
+                MLMvmax = self.MLMvmax,
 
                 #TITmean =self.TITmean,
                 #TITstd = self.TITstd,
@@ -112,8 +116,12 @@ class FeatureZone:
                 TITmax = self.TITmax,
                 TITpmean =self.TITpmean,
                 TITpstd = self.TITpstd,
+                TITpmin = self.TITpmin,
+                TITpmax = self.TITpmax,
                 TITvmean = self.TITvmean,
                 TITvstd = self.TITvstd,
+                TITvmin = self.TITvmin,
+                TITvmax = self.TITvmax,
 
                 amean = self.amean,
                 astd = self.astd,
@@ -135,19 +143,27 @@ class FeatureZone:
 
             stats = np.load(spath / "train_stats.npz")
 
-            self.MLMmean = stats["MLMmin"]
-            self.MLMstd  = stats["MLMmax"]
+            self.MLMmin = stats["MLMmin"]
+            self.MLMmax  = stats["MLMmax"]
             self.MLMpmean = stats["MLMpmean"]
             self.MLMpstd  = stats["MLMpstd"]
+            self.MLMmin = stats["MLMmin"]
+            self.MLMax  = stats["MLMmax"]
             self.MLMvmean = stats["MLMvmean"]
             self.MLMvstd  = stats["MLMvstd"]
+            self.MLMmin = stats["MLMmin"]
+            self.MLMax  = stats["MLMmax"]
 
-            self.TITmean = stats["TITmin"]
-            self.TITstd  = stats["TITmax"]
+            self.TITmin = stats["TITmin"]
+            self.TITmax  = stats["TITmax"]
             self.TITpmean = stats["TITpmean"]
             self.TITpstd  = stats["TITpstd"]
+            self.TITpmin = stats["TITpmin"]
+            self.TITpmax  = stats["TITpmax"]
             self.TITvmean = stats["TITvmean"]
             self.TITvstd  = stats["TITvstd"]
+            self.TITvmin = stats["TITvmin"]
+            self.TITvmax  = stats["TITvmax"]
 
             self.amean = stats["amean"]
             self.astd  = stats["astd"]
@@ -350,7 +366,7 @@ class FeatureZone:
 
         return np.float32(amean), np.float32(astd), np.float32(bmean), np.float32(bstd), np.float32(wmean), np.float32(wstd), np.float32(hmean), np.float32(hstd), np.float32(pmean), np.float32(pstd)
     
-    def get_global(self, modality:str) -> Tuple[np.float32, np.float32, np.float32, np.float32, np.float32, np.float32]:
+    def get_global(self, modality:str) -> Tuple[np.float32, np.float32, np.float32, np.float32, np.float32, np.float32, np.float32, np.float32, np.float32, np.float32]:
         """
         Iterrating over all raw data picture arrays for the longest breath or for titration. 
         Collect total sum, total square sum and count the total number of pixels.
@@ -361,9 +377,9 @@ class FeatureZone:
             dataset identifier ("MLM", "TIT")
 
         Returns:
-        arr_mean : numpy.float32
+        arr_max : numpy.float32
             global scaler
-        arr_std : numpy.float32
+        arr_min : numpy.float32
             global scalar
         p_mean : numpy.float32
             global scaler
@@ -379,8 +395,8 @@ class FeatureZone:
         p_sum = v_sum = 0.0
         p_sq_sum = v_sq_sum = 0.0
         arr_count = p_count = v_count = 0
-        amax = 0.0
-        amin = 0.0
+        amax = pmax = vmax = 0.0
+        amin = pmin = vmin = 0.0
 
         pat_folders = sorted([f for f in (self.path / "clean" / self.split).iterdir() if f.is_dir()])
         for p in pat_folders:
@@ -396,19 +412,31 @@ class FeatureZone:
             #arr_sq_sum += np.nansum(np.square(data['EITdata']))
             #arr_count += np.count_nonzero(~np.isnan(data['EITdata']))
 
-            if amin < data["eitData"].amin():
-                amin = data["eitData"].amin()
+            if amin < data["eitData"].min():
+                amin = data["eitData"].min()
              
-            if amax < data["eitData"].amax():
-                amax = data["eitData"].amax()
+            if amax < data["eitData"].max():
+                amax = data["eitData"].max()
 
             p_sum += data['pressureData'].sum()
             p_sq_sum += np.square(data['pressureData']).sum()
             p_count += data['pressureData'].size
+
+            if pmin < data["eitData"].min():
+                pmin = data["eitData"].min()
+             
+            if pmax < data["eitData"].max():
+                pmax = data["eitData"].max()
  
             v_sum += data['volumeData'].sum()
             v_sq_sum += np.square(data['volumeData']).sum()
             v_count += data['volumeData'].size 
+
+            if vmin < data["eitData"].min():
+                vmin = data["eitData"].min()
+             
+            if vmax < data["eitData"].max():
+                vmax = data["eitData"].max()
 
             del data
 
@@ -431,7 +459,7 @@ class FeatureZone:
         v_var = np.maximum(v_var, 0.0)
         v_std = np.sqrt(v_var) + 1e-6
 
-        return min, max, np.float32(p_mean), np.float32(p_std), np.float32(v_mean), np.float32(v_std)
+        return np.float32(amin), np.float32(amax), np.float32(p_mean), np.float32(p_mean), np.float32(p_std), np.float32(pmin), np.float32(pmax), np.float32(v_mean), np.float32(v_std), np.float32(vmin), np.float32(vmax)
     
 
     def get_res(self) -> nn.Module:
@@ -562,37 +590,36 @@ class FeatureZone:
                     chunk[mask] = (chunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
                 chunk[:,0,:,:][mask[:,0,:,:]] = (chunk[:,0,:,:][mask[:,0,:,:]] - 0.485) / 0.229   
                 chunk[~mask] = 0.0
-                        
+                
 
-                pChunk = torch.from_numpy(pre[0, i:i+batch_size].astype(np.float32)) \
+                p = pre[0, i:i+batch_size].astype(np.float32)
+                if modality == "MLM":
+                    p = (p - self.MLMpmin) / (self.MLMpmax - self.MLMpmin + 1e-6)
+                else:
+                    p = (p - self.MLMpmin) / (self.MLMpmax - self.MLMpmin + 1e-6)
+                p = (p - 0.485) / 0.229
+
+                pChunk = torch.from_numpy(p) \
                     .float() \
                     .to(self.device, non_blocking=True) \
                     .view(-1,1,1,1) \
                     .expand(-1,1,chunk.shape[2],chunk.shape[3])
                 
+
+                v = vol[0, i:i+batch_size].astype(np.float32)
                 if modality == "MLM":
-                    pchunk = (pchunk - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
+                    v = (v - self.MLMvmin) / (self.MLMvmax - self.MLMvmin + 1e-6)
                 else:
-                    pchunk = (pchunk - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
-                pchunk = (pchunk - 0.485) / 0.229   
+                    v = (v - self.MLMvmin) / (self.MLMvmax - self.MLMvmin + 1e-6)
+                v = (v - 0.485) / 0.229 
 
-
-                vChunk = torch.from_numpy(vol[0, i:i+batch_size].astype(np.float32)) \
+                vChunk = torch.from_numpy(v) \
                     .float() \
                     .to(self.device, non_blocking=True) \
                     .view(-1, 1, 1, 1) \
                     .expand(-1, 1, chunk.shape[2], chunk.shape[3])
-                
-                if modality == "MLM":
-                    vChunk[mask] = (vChunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
-                else:
-                    vChunk[mask] = (vChunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
-                vChunk = (vChunk - 0.485) / 0.229   
 
                 vp = torch.cat([chunk, pChunk, vChunk], dim=1)
-
-
-
                 vp = F.interpolate(
                     vp,
                     size=(224, 224),
