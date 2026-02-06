@@ -88,7 +88,7 @@ class CleanZone:
             MLMmat = scipy.io.loadmat(path)
             key = list(MLMmat.keys())[3]
             MLM = np.transpose(MLMmat[key], (2,0,1)).astype(np.float32)
-            MLM = np.nan_to_num(MLM, nan=0.0)
+            #MLM = np.nan_to_num(MLM, nan=0.0)
 
             pMLMmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLM' / id / f"{id}_pressure_filtered_sb.mat")
             pkey = list(pMLMmat.keys())[3]
@@ -105,7 +105,7 @@ class CleanZone:
             TITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / id / f"{id}_images_part_tit.mat")
             key = list(TITmat.keys())[3]
             TIT = np.transpose(TITmat[key], (2,0,1)).astype(np.float32)
-            TIT = np.nan_to_num(TIT, nan=0.0)
+            #TIT = np.nan_to_num(TIT, nan=0.0)
             
             pTITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / id / f"{id}_pressure_filtered_tit.mat")
             pkey = list(pTITmat.keys())[3]

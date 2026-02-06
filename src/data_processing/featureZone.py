@@ -4,6 +4,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision import transforms
 from torchvision.models import resnet50, ResNet50_Weights
 from typing import Tuple
 
@@ -83,9 +84,11 @@ class FeatureZone:
         self.path = path
         self.split = split
 
+
+
         if split == "train":
-            self.MLMmean, self.MLMstd, self.MLMpmean, self.MLMpstd, self.MLMvmean, self.MLMvstd = self.get_global("MLM")
-            self.TITmean, self.TITstd, self.TITpmean, self.TITpstd, self.TITvmean, self.TITvstd = self.get_global("TIT")
+            self.MLMmin, self.MLMmax, self.MLMpmean, self.MLMpstd, self.MLMvmean, self.MLMvstd = self.get_global("MLM")
+            self.TITmin, self.TITmax, self.TITpmean, self.TITpstd, self.TITvmean, self.TITvstd = self.get_global("TIT")
 
             self.amean, self.astd, self.bmean, self.bstd, self.wmean, self.wstd, self.hmean, self.hstd, self.pmean, self.pstd = self.get_tglobal()
 
@@ -94,15 +97,19 @@ class FeatureZone:
             np.savez_compressed(
                 spath / "train_stats.npz",
 
-                MLMmean = self.MLMmean,
-                MLMstd = self.MLMstd,
+                #MLMmean = self.MLMmean,
+                #MLMstd = self.MLMstd,
+                MLMmin = self.MLMmin,
+                MLMmax = self.MLMmax,
                 MLMpmean = self.MLMpmean,
                 MLMpstd = self.MLMpstd,
                 MLMvmean = self.MLMvmean,
                 MLMvstd = self.MLMvstd,
 
-                TITmean =self.TITmean,
-                TITstd = self.TITstd,
+                #TITmean =self.TITmean,
+                #TITstd = self.TITstd,
+                TITmin = self.TITmin,
+                TITmax = self.TITmax,
                 TITpmean =self.TITpmean,
                 TITpstd = self.TITpstd,
                 TITvmean = self.TITvmean,
@@ -128,15 +135,15 @@ class FeatureZone:
 
             stats = np.load(spath / "train_stats.npz")
 
-            self.MLMmean = stats["MLMmean"]
-            self.MLMstd  = stats["MLMstd"]
+            self.MLMmean = stats["MLMmin"]
+            self.MLMstd  = stats["MLMmax"]
             self.MLMpmean = stats["MLMpmean"]
             self.MLMpstd  = stats["MLMpstd"]
             self.MLMvmean = stats["MLMvmean"]
             self.MLMvstd  = stats["MLMvstd"]
 
-            self.TITmean = stats["TITmean"]
-            self.TITstd  = stats["TITstd"]
+            self.TITmean = stats["TITmin"]
+            self.TITstd  = stats["TITmax"]
             self.TITpmean = stats["TITpmean"]
             self.TITpstd  = stats["TITpstd"]
             self.TITvmean = stats["TITvmean"]
@@ -200,13 +207,13 @@ class FeatureZone:
                 continue
 
             mlmData = np.load(mlmPath)
-            mlmRes3D = self.extract_resnet_features3D((mlmData['EITdata'] - self.MLMmean) / (self.MLMstd + 1e-6))
+            mlmRes3D = self.extract_resnet_features3D(mlmData['EITdata'], "MLM")
             mlmLSTM3D = self.extract_LSTM_features(mlmRes3D).cpu()
 
             logger.info("TIT")
             titPath = p / "TITeit.npz"
             titData = np.load(titPath)
-            titRes3D = self.extract_resnet_features3D((titData['EITdata'] - self.TITmean) / (self.TITstd + 1e-6))
+            titRes3D = self.extract_resnet_features3D(titData['EITdata'], "TIT")
             titLSTM3D = self.extract_LSTM_features(titRes3D).cpu()
 
             logger.info("save")
@@ -230,16 +237,18 @@ class FeatureZone:
 
             logger.info("vp")
             mlmResVP = self.extract_resnet_featuresVP(
-                (mlmData['EITdata'] - self.MLMmean) / (self.MLMstd + 1e-6), 
-                (mlmData['pressureData'] - self.MLMpmean) / (self.MLMpstd + 1e-6), 
-                (mlmData['volumeData'] - self.MLMvmean) / (self.MLMvstd + 1e-6)
+                (mlmData['EITdata']), 
+                (mlmData['pressureData']), 
+                (mlmData['volumeData']),
+                "MLM"
                 )
             mlmLSTMVP = self.extract_LSTM_features(mlmResVP).cpu()
 
             titResVP = self.extract_resnet_featuresVP(
-                (titData['EITdata'] - self.TITmean) / (self.TITstd + 1e-6), 
-                (titData['pressureData'] - self.TITpmean) / (self.TITpstd + 1e-6), 
-                (titData['volumeData'] - self.TITvmean) / (self.TITvstd + 1e-6)
+                (titData['EITdata']), 
+                (titData['pressureData']), 
+                (titData['volumeData']),
+                "TIT"
                 )
             titLSTMVP = self.extract_LSTM_features(titResVP).cpu()
 
@@ -367,9 +376,11 @@ class FeatureZone:
         """
         logger.info("Start get_global for: " + modality)
 
-        arr_sum = p_sum = v_sum = 0.0
-        arr_sq_sum = p_sq_sum = v_sq_sum = 0.0
+        p_sum = v_sum = 0.0
+        p_sq_sum = v_sq_sum = 0.0
         arr_count = p_count = v_count = 0
+        amax = 0.0
+        amin = 0.0
 
         pat_folders = sorted([f for f in (self.path / "clean" / self.split).iterdir() if f.is_dir()])
         for p in pat_folders:
@@ -381,17 +392,23 @@ class FeatureZone:
 
             data = np.load(path)
 
-            arr_sum += data['EITdata'].sum()
-            arr_sq_sum += np.square(data['EITdata']).sum()
-            arr_count += data['EITdata'].size
- 
+            #arr_sum += np.nansum(data['EITdata'])
+            #arr_sq_sum += np.nansum(np.square(data['EITdata']))
+            #arr_count += np.count_nonzero(~np.isnan(data['EITdata']))
+
+            if amin < data["eitData"].amin():
+                amin = data["eitData"].amin()
+             
+            if amax < data["eitData"].amax():
+                amax = data["eitData"].amax()
+
             p_sum += data['pressureData'].sum()
             p_sq_sum += np.square(data['pressureData']).sum()
             p_count += data['pressureData'].size
  
             v_sum += data['volumeData'].sum()
             v_sq_sum += np.square(data['volumeData']).sum()
-            v_count += data['volumeData'].size
+            v_count += data['volumeData'].size 
 
             del data
 
@@ -399,10 +416,10 @@ class FeatureZone:
             logger.warning(f"No data found for {modality}")
             return 0.0, 1.0, 0.0, 1.0, 0.0, 1.0
 
-        arr_mean = arr_sum / arr_count
-        arr_var = arr_sq_sum / arr_count - arr_mean**2
-        arr_var = np.maximum(arr_var, 0.0)
-        arr_std = np.sqrt(arr_var) + 1e-6
+        #arr_mean = arr_sum / arr_count
+        #arr_var = arr_sq_sum / arr_count - arr_mean**2
+        #arr_var = np.maximum(arr_var, 0.0)
+        #arr_std = np.sqrt(arr_var) + 1e-6
 
         p_mean = p_sum / p_count
         p_var = p_sq_sum / p_count - p_mean**2
@@ -414,8 +431,8 @@ class FeatureZone:
         v_var = np.maximum(v_var, 0.0)
         v_std = np.sqrt(v_var) + 1e-6
 
-        return np.float32(arr_mean), np.float32(arr_std), np.float32(p_mean), np.float32(p_std), np.float32(v_mean), np.float32(v_std)
-
+        return min, max, np.float32(p_mean), np.float32(p_std), np.float32(v_mean), np.float32(v_std)
+    
 
     def get_res(self) -> nn.Module:
         """
@@ -435,7 +452,7 @@ class FeatureZone:
             p.requires_grad = False
         return resnet
 
-    def extract_resnet_features3D(self, frames:np.ndarray, batch_size:int=256) -> torch.Tensor:
+    def extract_resnet_features3D(self, frames:np.ndarray, modality:str, batch_size:int=256) -> torch.Tensor:
         """
         Extracts spatial features from a temporal sequence of grayscale images
         using a frozen ResNet-50 backbone.
@@ -472,6 +489,18 @@ class FeatureZone:
                 chunk = chunk.unsqueeze(1)           # (B,1,H,W)
                 chunk = chunk.expand(-1, 3, -1, -1)  # (B,3,H,W)
 
+                mask = ~torch.isnan(chunk)
+                if modality == "MLM":
+                    chunk[mask] = (chunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
+                else:
+                    chunk[mask] = (chunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
+
+                chunk[:,0,:,:][mask[:,0,:,:]] = (chunk[:,0,:,:][mask[:,0,:,:]] - 0.485) / 0.229
+                chunk[:,1,:,:][mask[:,1,:,:]] = (chunk[:,1,:,:][mask[:,1,:,:]] - 0.456) / 0.224
+                chunk[:,2,:,:][mask[:,2,:,:]] = (chunk[:,2,:,:][mask[:,2,:,:]] - 0.406) / 0.225
+
+                chunk[~mask] = 0.0
+
                 chunk = F.interpolate(
                     chunk,
                     size=(224, 224),
@@ -487,7 +516,7 @@ class FeatureZone:
         return torch.cat(spatial_features, dim=0)
     
 
-    def extract_resnet_featuresVP(self, frames:np.ndarray, pre:np.ndarray, vol:np.ndarray, batch_size=256) -> torch.Tensor:
+    def extract_resnet_featuresVP(self, frames:np.ndarray, pre:np.ndarray, vol:np.ndarray, modality:str, batch_size=256) -> torch.Tensor:
         """
         Extracts spatial features from a temporal sequence of grayscale images
         using a frozen ResNet-50 backbone.
@@ -524,26 +553,53 @@ class FeatureZone:
                     .float() \
                     .to(self.device, non_blocking=True) \
                     .unsqueeze(1)                   # (B,1,H,W)
+                
+
+                mask = ~torch.isnan(chunk)
+                if modality == "MLM":
+                    chunk[mask] = (chunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
+                else:
+                    chunk[mask] = (chunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
+                chunk[:,0,:,:][mask[:,0,:,:]] = (chunk[:,0,:,:][mask[:,0,:,:]] - 0.485) / 0.229   
+                chunk[~mask] = 0.0
+                        
 
                 pChunk = torch.from_numpy(pre[0, i:i+batch_size].astype(np.float32)) \
                     .float() \
                     .to(self.device, non_blocking=True) \
                     .view(-1,1,1,1) \
                     .expand(-1,1,chunk.shape[2],chunk.shape[3])
+                
+                if modality == "MLM":
+                    pchunk = (pchunk - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
+                else:
+                    pchunk = (pchunk - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
+                pchunk = (pchunk - 0.485) / 0.229   
+
 
                 vChunk = torch.from_numpy(vol[0, i:i+batch_size].astype(np.float32)) \
                     .float() \
                     .to(self.device, non_blocking=True) \
                     .view(-1, 1, 1, 1) \
                     .expand(-1, 1, chunk.shape[2], chunk.shape[3])
+                
+                if modality == "MLM":
+                    vChunk[mask] = (vChunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
+                else:
+                    vChunk[mask] = (vChunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
+                vChunk = (vChunk - 0.485) / 0.229   
 
                 vp = torch.cat([chunk, pChunk, vChunk], dim=1)
+
+
+
                 vp = F.interpolate(
                     vp,
                     size=(224, 224),
                     mode="bilinear",
                     align_corners=False
                 )
+
 
                 features = self.resnet(vp)          # (B,2048,1,1)
                 features = features.flatten(1)      # (B,2048)

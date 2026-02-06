@@ -22,10 +22,7 @@ class Workflow:
 
         self.lr = 1e-3
         self.weight_decay = 1e-4
-        self.patience = 10
-
-        self.best_val_loss = float("inf")
-
+        self.patience = 5
 
     def run(self):
         self.best_val_loss = float("inf")
@@ -81,6 +78,9 @@ class Workflow:
         train_losses = []
         val_losses = []
 
+        best_val_loss = float("inf")
+        min_delta = 1e-5
+
         patience_counter = 0
 
         for epoch in range(num_epochs):
@@ -111,12 +111,15 @@ class Workflow:
             f"Epoch {epoch+1}: train={train_loss:.4f}, val={val_loss:.4f}"
             )
 
-            if val_loss < self.best_val_loss  - 1e-4:
-                self.best_val_loss = val_loss
+            if val_loss < best_val_loss - min_delta:
+                best_val_loss = val_loss
                 patience_counter = 0
                 torch.save(model.state_dict(), "best_model.pt")
+                logger.info("Validation improved → save model, reset patience")
             else:
                 patience_counter += 1
+                logger.info(f"No significant improvement (patience {patience_counter}/{self.patience})")
+
 
             if patience_counter >= self.patience:
                 logger.info("Early stopping triggered")
