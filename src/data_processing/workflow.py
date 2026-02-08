@@ -21,17 +21,12 @@ class Workflow:
 
     def run(self) -> None:
         logger.info("\n##########\nStart Clean Zone\n##########")
-        
         CleanZone(self.input_path).run()
         
         logger.info("\n##########\nStart Split Data\n##########")
-
-        
         SplitData(self.input_path).run()
    
-
         logger.info("\n##########\nStart Feature Zone\n##########")
-
         FeatureZone(self.input_path, "train").run()
         FeatureZone(self.input_path, "val").run()
         FeatureZone(self.input_path, "test").run()

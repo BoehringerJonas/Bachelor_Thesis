@@ -135,15 +135,15 @@ class FeatureZone:
 
             stats = np.load(spath / "train_stats.npz")
 
-            self.MLMmean = stats["MLMmin"]
-            self.MLMstd  = stats["MLMmax"]
+            self.MLMmin = stats["MLMmin"]
+            self.MLMmax  = stats["MLMmax"]
             self.MLMpmean = stats["MLMpmean"]
             self.MLMpstd  = stats["MLMpstd"]
             self.MLMvmean = stats["MLMvmean"]
             self.MLMvstd  = stats["MLMvstd"]
 
-            self.TITmean = stats["TITmin"]
-            self.TITstd  = stats["TITmax"]
+            self.TITmin = stats["TITmin"]
+            self.TITmax  = stats["TITmax"]
             self.TITpmean = stats["TITpmean"]
             self.TITpstd  = stats["TITpstd"]
             self.TITvmean = stats["TITvmean"]
@@ -161,7 +161,23 @@ class FeatureZone:
             self.pstd  = stats["pstd"]
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         logger.info(f"Using device: {self.device}")
+        self.MLMmin = torch.tensor(self.MLMmin, device=self.device)
+        self.MLMmax = torch.tensor(self.MLMmax, device=self.device)
+
+        self.TITmin = torch.tensor(self.TITmin, device=self.device)
+        self.TITmax = torch.tensor(self.TITmax, device=self.device)
+
+        self.MLMpmean = torch.tensor(self.MLMpmean, device=self.device)
+        self.MLMpstd  = torch.tensor(self.MLMpstd, device=self.device)
+        self.MLMvmean = torch.tensor(self.MLMvmean, device=self.device)
+        self.MLMvstd  = torch.tensor(self.MLMvstd, device=self.device)
+
+        self.TITpmean = torch.tensor(self.TITpmean, device=self.device)
+        self.TITpstd  = torch.tensor(self.TITpstd, device=self.device)
+        self.TITvmean = torch.tensor(self.TITvmean, device=self.device)
+        self.TITvstd  = torch.tensor(self.TITvstd, device=self.device)
 
         logger.info("def ResNet")
         self.resnet = self.get_res().to(self.device) #Init encoder from ResNet
@@ -191,13 +207,15 @@ class FeatureZone:
         `LSTM_<id>.npz` contain the final features after LSTM processing.
         """
 
+        logger.info("Start feature for: " + self.split)
+
         torch.set_grad_enabled(False)
         self.resnet.eval()
         self.lstm.eval()
 
         pat_folders = sorted([f for f in (self.path / "clean" / self.split).iterdir() if f.is_dir()])
-        for p in pat_folders:
-            logger.info("Starting iteration for: " + str(p.name))
+        for idx, p in enumerate(pat_folders, start=1):
+            logger.info(f"Starting iteration for: {p.name} pat: {idx} / {len(pat_folders)}")
             logger.info("3D")
             logger.info("MLM")
             mlmPath = p / "MLMeit.npz"
@@ -324,8 +342,8 @@ class FeatureZone:
             count += 1
 
         if count == 0:
-            logger.warning(f"No data found for table")
-            return 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0
+            raise RuntimeError(f"No data found for table")
+
         
         amean = asum / count
         var = asq_sum / count - amean**2
@@ -378,9 +396,9 @@ class FeatureZone:
 
         p_sum = v_sum = 0.0
         p_sq_sum = v_sq_sum = 0.0
-        arr_count = p_count = v_count = 0
-        amax = 0.0
-        amin = 0.0
+        p_count = v_count = 0
+        amax = -np.inf
+        amin = np.inf
 
         pat_folders = sorted([f for f in (self.path / "clean" / self.split).iterdir() if f.is_dir()])
         for p in pat_folders:
@@ -396,11 +414,13 @@ class FeatureZone:
             #arr_sq_sum += np.nansum(np.square(data['EITdata']))
             #arr_count += np.count_nonzero(~np.isnan(data['EITdata']))
 
-            if amin < data["eitData"].amin():
-                amin = data["eitData"].amin()
+            if amin < data["EITdata"].min():
+                amin = data["EITdata"].min()
              
-            if amax < data["eitData"].amax():
-                amax = data["eitData"].amax()
+            if amax < data["EITdata"].max():
+                amax = data["EITdata"].max()
+
+
 
             p_sum += data['pressureData'].sum()
             p_sq_sum += np.square(data['pressureData']).sum()
@@ -412,14 +432,13 @@ class FeatureZone:
 
             del data
 
-        if arr_count == 0:
-            logger.warning(f"No data found for {modality}")
-            return 0.0, 1.0, 0.0, 1.0, 0.0, 1.0
-
+        if p_count == 0 or v_count == 0:
+            raise RuntimeError(f"No pressure/volume data found for modality {modality}")
+        
         #arr_mean = arr_sum / arr_count
         #arr_var = arr_sq_sum / arr_count - arr_mean**2
         #arr_var = np.maximum(arr_var, 0.0)
-        #arr_std = np.sqrt(arr_var) + 1e-6
+        #arr_std = np.sqrt(arr_var) + 1e-6 
 
         p_mean = p_sum / p_count
         p_var = p_sq_sum / p_count - p_mean**2
@@ -431,7 +450,7 @@ class FeatureZone:
         v_var = np.maximum(v_var, 0.0)
         v_std = np.sqrt(v_var) + 1e-6
 
-        return min, max, np.float32(p_mean), np.float32(p_std), np.float32(v_mean), np.float32(v_std)
+        return np.float32(amin), np.float32(amax), np.float32(p_mean), np.float32(p_std), np.float32(v_mean), np.float32(v_std)
     
 
     def get_res(self) -> nn.Module:
@@ -487,7 +506,7 @@ class FeatureZone:
                             .to(self.device, non_blocking=True)
 
                 chunk = chunk.unsqueeze(1)           # (B,1,H,W)
-                chunk = chunk.expand(-1, 3, -1, -1)  # (B,3,H,W)
+                chunk = chunk.expand(-1, 3, -1, -1).clone()  # (B,3,H,W)
 
                 mask = ~torch.isnan(chunk)
                 if modality == "MLM":
@@ -559,39 +578,23 @@ class FeatureZone:
                 if modality == "MLM":
                     chunk[mask] = (chunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
                 else:
-                    chunk[mask] = (chunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
+                    chunk[mask] = (chunk[mask] - self.TITmin) / (self.TITmax - self.TITmin + 1e-6)
                 chunk[:,0,:,:][mask[:,0,:,:]] = (chunk[:,0,:,:][mask[:,0,:,:]] - 0.485) / 0.229   
                 chunk[~mask] = 0.0
-                        
 
-                pChunk = torch.from_numpy(pre[0, i:i+batch_size].astype(np.float32)) \
-                    .float() \
-                    .to(self.device, non_blocking=True) \
-                    .view(-1,1,1,1) \
-                    .expand(-1,1,chunk.shape[2],chunk.shape[3])
-                
+                p = torch.from_numpy(pre[0, i:i+batch_size]).float().to(self.device)
+                v = torch.from_numpy(vol[0, i:i+batch_size]).float().to(self.device)
+                                        
                 if modality == "MLM":
-                    pchunk = (pchunk - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
+                    p = (p - self.MLMpmean) / (self.MLMpstd + 1e-6)
+                    v = (v - self.MLMvmean) / (self.MLMvstd + 1e-6)
                 else:
-                    pchunk = (pchunk - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
-                pchunk = (pchunk - 0.485) / 0.229   
+                    p = (p - self.TITpmean) / (self.TITpstd + 1e-6)
+                    v = (v - self.TITvmean) / (self.TITvstd + 1e-6)
 
-
-                vChunk = torch.from_numpy(vol[0, i:i+batch_size].astype(np.float32)) \
-                    .float() \
-                    .to(self.device, non_blocking=True) \
-                    .view(-1, 1, 1, 1) \
-                    .expand(-1, 1, chunk.shape[2], chunk.shape[3])
-                
-                if modality == "MLM":
-                    vChunk[mask] = (vChunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
-                else:
-                    vChunk[mask] = (vChunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
-                vChunk = (vChunk - 0.485) / 0.229   
-
+                pChunk = p.view(-1, 1, 1, 1).expand(-1, 1, chunk.shape[2], chunk.shape[3])
+                vChunk = v.view(-1, 1, 1, 1).expand(-1, 1, chunk.shape[2], chunk.shape[3])
                 vp = torch.cat([chunk, pChunk, vChunk], dim=1)
-
-
 
                 vp = F.interpolate(
                     vp,
@@ -599,7 +602,6 @@ class FeatureZone:
                     mode="bilinear",
                     align_corners=False
                 )
-
 
                 features = self.resnet(vp)          # (B,2048,1,1)
                 features = features.flatten(1)      # (B,2048)
