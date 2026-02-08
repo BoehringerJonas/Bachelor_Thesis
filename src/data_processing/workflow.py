@@ -21,10 +21,10 @@ class Workflow:
 
     def run(self) -> None:
         logger.info("\n##########\nStart Clean Zone\n##########")
-        CleanZone(self.input_path).run()
+        #CleanZone(self.input_path).run()
         
         logger.info("\n##########\nStart Split Data\n##########")
-        SplitData(self.input_path).run()
+        #SplitData(self.input_path).run()
    
         logger.info("\n##########\nStart Feature Zone\n##########")
         FeatureZone(self.input_path, "train").run()
@@ -37,11 +37,11 @@ class Workflow:
 def entrypoint():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Arguments for segmentator evaluation")
+    parser = argparse.ArgumentParser(description="Arguments for in- and output")
 
     parser.add_argument(
         "--input_path",
-        help="Path to parent directory of the nifti files",
+        help="Path to data directory",
         required=True,
     )
 

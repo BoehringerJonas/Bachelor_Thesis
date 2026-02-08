@@ -3,7 +3,9 @@ import logging
 import matplotlib.pyplot as plt
 from pathlib import Path
 import torch
-from sklearn.metrics import  mean_absolute_error, mean_squared_error
+from torch.utils.data import DataLoader
+from sklearn.metrics import  mean_absolute_error, root_mean_squared_error
+
 
 from mlp import MLP
 from patientDataModule import PatientDataModule
@@ -15,9 +17,15 @@ logging.basicConfig(
 logger = logging.getLogger("trainer")
 
 
-class Workflow:
-    def __init__(self, path: Path):
-        self.path = Path(path)
+class Trainer:
+    def __init__(self, train_loader:DataLoader, val_loader:DataLoader, test_loader:DataLoader, input_size:DataLoader, path:Path) -> None:
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.test_loader = test_loader
+        self.input_size = input_size
+
+        self.path = path
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.lr = 1e-3
@@ -27,18 +35,14 @@ class Workflow:
     def run(self):
         self.best_val_loss = float("inf")
 
-        train_loader, val_loader, test_loader, input_size = (
-            PatientDataModule(self.path, 4).run()
-        )
-
-
+        logger.info("Init MLP")
         model = MLP(
-                input_size = input_size, 
+                input_size = self.input_size, 
                 output_size = 1, 
                 hidden_sizes = [64, 32]
         ).to(self.device)
 
-        for inputs, targets in train_loader:
+        for inputs, targets in self.train_loader:
             outputs = model(inputs.to(self.device))
 
             logger.info(f"inputs:  {inputs.shape}")
@@ -54,11 +58,12 @@ class Workflow:
 
         criterion = torch.nn.L1Loss()
 
-        train_losses, val_losses = self.train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=100)
+        logger.info("Train Model")
+        train_losses, val_losses = self.train_model(model, self.train_loader, self.val_loader, criterion, optimizer, num_epochs=100)
 
 
         # Evaluate the model
-        test_loss, test_mae, test_rmse = self.evaluate_model(model, test_loader, criterion)
+        test_loss, test_mae, test_rmse = self.evaluate_model(model, self.test_loader, criterion)
         logger.info(f'Test Loss: {test_loss:.4f}')
         logger.info(f"Test MAE:  {test_mae:.2f}")
         logger.info(f"Test RMSE: {test_rmse:.2f}")
@@ -69,7 +74,7 @@ class Workflow:
         plt.xlabel("Epoch")
         plt.ylabel("MAE")
         plt.title("Training with Early Stopping")
-        plt.savefig("training_curve.png")
+        plt.savefig(self.path / "training_curveMLP.png")
 
 
 
@@ -114,7 +119,7 @@ class Workflow:
             if val_loss < best_val_loss - min_delta:
                 best_val_loss = val_loss
                 patience_counter = 0
-                torch.save(model.state_dict(), "best_model.pt")
+                torch.save(model.state_dict(), self.path / "MLP_model.pt")
                 logger.info("Validation improved → save model, reset patience")
             else:
                 patience_counter += 1
@@ -125,7 +130,7 @@ class Workflow:
                 logger.info("Early stopping triggered")
                 break
 
-        model.load_state_dict(torch.load("best_model.pt"))
+        model.load_state_dict(torch.load(self.path / "MLP_model.pt"))
         return train_losses, val_losses
     
     def validate_model(self, model, val_loader, criterion):
@@ -148,56 +153,30 @@ class Workflow:
 
     def evaluate_model(self, model, test_loader, criterion):
         logger.info("Evaluate Model")
-        model.eval()  # Set model to evaluation mode
+        model.eval() 
         test_loss = 0.0
         all_preds = []
         all_targets = []
         
-        # No gradient calculation needed for evaluation
         with torch.no_grad():
             for inputs, targets in test_loader:
-                # Forward pass
+
                 inputs = inputs.to(self.device)
                 targets = targets.to(self.device)
                 outputs = model(inputs)
                 
-                # Calculate loss
                 loss = criterion(outputs, targets)
                 test_loss += loss.item() * inputs.size(0)
                 
                 all_preds.append(outputs.cpu().numpy())
                 all_targets.append(targets.cpu().numpy())
         
-        # Calculate metrics
         avg_loss = test_loss / len(test_loader.dataset)
         
         y_pred = np.concatenate(all_preds)
         y_true = np.concatenate(all_targets)
         
         mae = mean_absolute_error(y_true, y_pred)
-        rmse = mean_squared_error(y_true, y_pred, squared=False)
+        rmse = root_mean_squared_error(y_true, y_pred)
 
         return avg_loss, mae, rmse
-
-
-def entrypoint():
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Arguments for segmentator evaluation")
-
-    parser.add_argument(
-        "--input_path",
-        help="Path to parent directory of the input .npz files",
-        required=True,
-    )
-
-    args = parser.parse_args()
-
-    Workflow(
-        path=args.input_path,
-    ).run()
-
-
-if __name__ == "__main__":
-    entrypoint()
-

@@ -20,7 +20,6 @@ class PatientDataModule:
         self.batch_size = batch_size
     
     def run(self) -> Tuple[DataLoader, DataLoader, DataLoader, int]:
-        logger.info("Load Data")
         x_train = []
         x_val = []
         x_test = []
@@ -48,12 +47,6 @@ class PatientDataModule:
                 #        f"NaN/Inf in MLM for patient {data['patient_id']} "
                 #        f"min={mlm.min()}, max={mlm.max()}"
                 #    )
-                if not torch.isfinite(tab).all():
-                    raise ValueError(
-                        f"NaN/Inf in TAB for patient {data['patient_id']} "
-                        f"values={tab}"
-                    )
-
 
                 full_tab = np.load(self.path.parent / "table" / p.name / f"{data['patient_id']}.npz")
                 tab = np.concatenate(
@@ -68,7 +61,14 @@ class PatientDataModule:
                     axis=0,
                 )
 
+
+
                 tab = torch.from_numpy(tab)#.unsqueeze(0)
+                #if not torch.isfinite(tab).all():
+                #    raise ValueError(
+                #        f"NaN/Inf in TAB for patient {data['patient_id']} "
+                #        f"values={tab}"
+                #    )
 
                 if p.name == "train":
                     x_train.append(torch.cat([tit, mlm, tab], dim=0))

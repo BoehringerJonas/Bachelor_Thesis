@@ -414,13 +414,8 @@ class FeatureZone:
             #arr_sq_sum += np.nansum(np.square(data['EITdata']))
             #arr_count += np.count_nonzero(~np.isnan(data['EITdata']))
 
-            if amin < data["EITdata"].min():
-                amin = data["EITdata"].min()
-             
-            if amax < data["EITdata"].max():
-                amax = data["EITdata"].max()
-
-
+            amin = min(amin, np.nanmin(data["EITdata"]))
+            amax = max(amax, np.nanmax(data["EITdata"]))
 
             p_sum += data['pressureData'].sum()
             p_sq_sum += np.square(data['pressureData']).sum()
@@ -504,11 +499,13 @@ class FeatureZone:
                 chunk = torch.from_numpy(frames[i:i+batch_size]) \
                             .float() \
                             .to(self.device, non_blocking=True)
+                
 
-                chunk = chunk.unsqueeze(1)           # (B,1,H,W)
-                chunk = chunk.expand(-1, 3, -1, -1).clone()  # (B,3,H,W)
+                chunk = chunk.unsqueeze(1)                  # (B,1,H,W)
+                chunk = chunk.expand(-1, 3, -1, -1).clone() # (B,3,H,W)
 
                 mask = ~torch.isnan(chunk)
+                
                 if modality == "MLM":
                     chunk[mask] = (chunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
                 else:
