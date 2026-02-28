@@ -6,6 +6,7 @@ from typing import Tuple
 
 from patientDataModule import PatientDataModule
 from randomForest import RandomForest
+from xgBoost import XGBoost
 from trainer import Trainer
 
 
@@ -29,7 +30,7 @@ class Workflow:
         logger.info("\n##########\Start MLP Trainer\n##########")
         Trainer(train_loader, val_loader, test_loader, input_size, self.output_path).run()
 
-        logger.info("\n##########\nRandom Forest\n##########")
+        logger.info("\n##########\nMaschine Learning\n##########")
         x_train, y_train = self.get_numpy(train_loader)
         x_val, y_val = self.get_numpy(val_loader)
         x_test, y_test = self.get_numpy(test_loader)
@@ -38,6 +39,7 @@ class Workflow:
         y_new_train = np.concatenate([y_train, y_val], axis=0)
 
         RandomForest(x_new_train, y_new_train, x_test, y_test, self.output_path).run()
+        XGBoost(x_new_train, y_new_train, x_test, y_test, self.output_path).run()
 
         logger.info("\n##########\nFinished Process\n##########")
 
