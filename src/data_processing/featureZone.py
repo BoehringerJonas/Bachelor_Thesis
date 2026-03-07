@@ -72,7 +72,7 @@ class FeatureZone:
         Two-layer LSTM for temporal aggregation of spatial features.
     """
 
-    def __init__(self, path:Path, split:str) -> None:
+    def __init__(self, path:Path, split:str, set:str) -> None:
         """
         Selects a CUDA-capable NVIDIA GPU if available; otherwise, uses the CPU.
         Initializes the ResNet and LSTM networks for feature extraction.
@@ -83,8 +83,7 @@ class FeatureZone:
         """
         self.path = path
         self.split = split
-
-
+        self.set = set
 
         if split == "train":
             self.MLMmin, self.MLMmax, self.MLMpmean, self.MLMpstd, self.MLMvmean, self.MLMvstd = self.get_global("MLM")
@@ -92,13 +91,11 @@ class FeatureZone:
 
             self.amean, self.astd, self.bmean, self.bstd, self.wmean, self.wstd, self.hmean, self.hstd, self.pmean, self.pstd = self.get_tglobal()
 
-            spath = self.path / "feature" / "stats"
+            spath = self.path / "feature" / self.set / "stats"
             spath.mkdir(parents=True, exist_ok=True)
             np.savez_compressed(
                 spath / "train_stats.npz",
 
-                #MLMmean = self.MLMmean,
-                #MLMstd = self.MLMstd,
                 MLMmin = self.MLMmin,
                 MLMmax = self.MLMmax,
                 MLMpmean = self.MLMpmean,
@@ -106,8 +103,6 @@ class FeatureZone:
                 MLMvmean = self.MLMvmean,
                 MLMvstd = self.MLMvstd,
 
-                #TITmean =self.TITmean,
-                #TITstd = self.TITstd,
                 TITmin = self.TITmin,
                 TITmax = self.TITmax,
                 TITpmean =self.TITpmean,
@@ -127,7 +122,7 @@ class FeatureZone:
                 pstd = self.pstd,
             )
         else:
-            spath = self.path / "feature" / "stats"
+            spath = self.path / "feature" / self.set / "stats"
             assert spath.exists(), (
                 "train_stats.npz not found. "
                 "You must run FeatureZone with split='train' first."
@@ -213,7 +208,7 @@ class FeatureZone:
         self.resnet.eval()
         self.lstm.eval()
 
-        pat_folders = sorted([f for f in (self.path / "clean" / self.split).iterdir() if f.is_dir()])
+        pat_folders = sorted([f for f in (self.path / self.set / self.split).iterdir() if f.is_dir()])
         for idx, p in enumerate(pat_folders, start=1):
             logger.info(f"Starting iteration for: {p.name} pat: {idx} / {len(pat_folders)}")
             logger.info("3D")
@@ -235,7 +230,7 @@ class FeatureZone:
             titLSTM3D = self.extract_LSTM_features(titRes3D).cpu()
 
             logger.info("save")
-            save_path = Path(self.path) / 'feature' / "3D" / self.split
+            save_path = Path(self.path) / 'feature' / self.set / "3D" / self.split
             save_path.mkdir(parents = True, exist_ok = True)
 
             np.savez_compressed(
@@ -271,7 +266,7 @@ class FeatureZone:
             titLSTMVP = self.extract_LSTM_features(titResVP).cpu()
 
             logger.info("save")
-            save_path = self.path / 'feature' / "VP" / self.split
+            save_path = self.path / 'feature' / self.set / "VP" / self.split
             save_path.mkdir(parents = True, exist_ok = True)
 
             np.savez_compressed(
@@ -291,7 +286,7 @@ class FeatureZone:
             path = p / "table.npz"
             data = np.load(path)
 
-            save_path = self.path / 'feature' / "table" / self.split
+            save_path = self.path / 'feature' / self.set / "table" / self.split
             save_path.mkdir(parents = True, exist_ok = True)
 
 
@@ -318,7 +313,7 @@ class FeatureZone:
         asq_sum = bsq_sum = wsq_sum = hsq_sum = psq_sum = 0.0
         count = 0
 
-        pat_folders = sorted([f for f in (self.path / "clean" / self.split).iterdir() if f.is_dir()])
+        pat_folders = sorted([f for f in (self.path / self.set / self.split).iterdir() if f.is_dir()])
         assert len(pat_folders) != 0, "No patient folders found in the path!"
         for p in pat_folders:
             path = p / "table.npz"
@@ -400,7 +395,7 @@ class FeatureZone:
         amax = -np.inf
         amin = np.inf
 
-        pat_folders = sorted([f for f in (self.path / "clean" / self.split).iterdir() if f.is_dir()])
+        pat_folders = sorted([f for f in (self.path / self.set / self.split).iterdir() if f.is_dir()])
         for p in pat_folders:
             path = p / f"{modality}eit.npz"
             
