@@ -159,7 +159,7 @@ class CleanZone:
         modality : str
             dataset identifier ("TITeit" or "MLMeit")
         """
-        save_path = Path(self.input_path) / 'clean' / id
+        save_path = self.input_path / 'clean' / id
         save_path.mkdir(parents = True, exist_ok = True)
         np.savez_compressed(
             save_path / f"{modality}.npz",
