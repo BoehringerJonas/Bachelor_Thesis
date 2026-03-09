@@ -9,6 +9,7 @@ torchvision==0.17.2
 
 # Machine Learning / Metrics
 scikit-learn>=1.4,<1.6
+xgboost>=2.0,<2.2
 
 # Visualization
 matplotlib>=3.8,<3.9

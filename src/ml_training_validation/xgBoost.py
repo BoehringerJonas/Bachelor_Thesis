@@ -2,12 +2,8 @@ import joblib
 import logging
 import matplotlib as plt
 import numpy as np
-
-from scipy.stats import uniform, randint
-
-from sklearn.datasets import load_breast_cancer, load_diabetes, load_wine
-from sklearn.metrics import auc, accuracy_score, confusion_matrix, mean_squared_error, precision_score, recall_score, ConfusionMatrixDisplay
-from sklearn.model_selection import cross_val_score, GridSearchCV, KFold, RandomizedSearchCV, train_test_split
+from pathlib import Path
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, recall_score, ConfusionMatrixDisplay
 
 import xgboost as xgb
 
@@ -16,14 +12,16 @@ logging.basicConfig(
         level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
-logger = logging.getLogger("Random Forest")
+logger = logging.getLogger("XGBoost")
 
 
 class XGBoost:
-    def __init__(self, x_train: np.array, y_train: np.array, x_test: np.array, y_test: np.array, path: Path) -> None:
+    def __init__(self, x_train: np.array, y_train: np.array, x_val: np.array, y_val: np.array, x_test: np.array, y_test: np.array, path: Path) -> None:
         self.x_train = x_train
-        self.x_test = x_test
         self.y_train = y_train
+        self.x_val = x_val
+        self.y_val = y_val        
+        self.x_test = x_test
         self.y_test = y_test
         self.path = path
 
