@@ -43,6 +43,8 @@ class Workflow:
         y_new_train = np.concatenate([y_train, y_val], axis=0)
 
         RandomForest(x_new_train, y_new_train, x_test, y_test, self.output_path / "clean" / "3D").run()
+        XGBoost(x_train, y_train, x_val, y_val, x_test, y_test, self.output_path / "clean" / "3D").run()
+
 
 
         logger.info("\n##########\nStart Process Full Data VP\n##########")
@@ -52,8 +54,7 @@ class Workflow:
         )
         logger.info("\n##########\Start MLP Trainer\n##########")
         Trainer(train_loader, val_loader, test_loader, input_size, self.output_path / "clean" / "VP").run()
-        XGBoost(x_train, y_train, x_val, y_val, x_test, y_test, self.output_path).run()
-
+        
         logger.info("\n##########\nRandom Forest\n##########")
         x_train, y_train = self.get_numpy(train_loader)
         x_val, y_val = self.get_numpy(val_loader)
@@ -63,7 +64,7 @@ class Workflow:
         y_new_train = np.concatenate([y_train, y_val], axis=0)
 
         RandomForest(x_new_train, y_new_train, x_test, y_test, self.output_path / "clean" / "VP").run()
-        XGBoost(x_train, y_train, x_val, y_val, x_test, y_test, self.output_path).run()
+        XGBoost(x_train, y_train, x_val, y_val, x_test, y_test, self.output_path / "clean" / "VP").run()
 
 
         logger.info("\n##########\nStart Process Half Data 3D\n##########")
@@ -83,7 +84,7 @@ class Workflow:
         y_new_train = np.concatenate([y_train, y_val], axis=0)
 
         RandomForest(x_new_train, y_new_train, x_test, y_test, self.output_path / "splitTit" / "3D").run()
-        XGBoost(x_train, y_train, x_val, y_val, x_test, y_test, self.output_path).run()
+        XGBoost(x_train, y_train, x_val, y_val, x_test, y_test, self.output_path / "splitTit" / "3D").run()
 
 
         logger.info("\n##########\nStart Process Half Data VP\n##########")
@@ -103,7 +104,7 @@ class Workflow:
         y_new_train = np.concatenate([y_train, y_val], axis=0)
 
         RandomForest(x_new_train, y_new_train, x_test, y_test, self.output_path / "splitTit" / "VP").run()
-        XGBoost(x_train, y_train, x_val, y_val, x_test, y_test, self.output_path).run()
+        XGBoost(x_train, y_train, x_val, y_val, x_test, y_test, self.output_path / "splitTit" / "VP").run()
 
         logger.info("\n##########\nFinished Process\n##########")
 
