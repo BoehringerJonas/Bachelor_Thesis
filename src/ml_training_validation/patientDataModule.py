@@ -33,19 +33,19 @@ class PatientDataModule:
             eit = [np.load(f) for f in p.glob("*_LSTM.npz")]
             for data in eit:
                 tit = torch.tensor(data["tit"], dtype=torch.float32).squeeze(0)
-                mlm = torch.tensor(data["mlm"], dtype=torch.float32).squeeze(0)
+                mlf = torch.tensor(data["mlf"], dtype=torch.float32).squeeze(0)
 
-                # nach tit / mlm Laden
+                # nach tit / mlf Laden
                 #if not torch.isfinite(tit).all():
                 #    raise ValueError(
                 #        f"NaN/Inf in TIT for patient {data['patient_id']} "
                 #        f"min={tit.min()}, max={tit.max()}"
                 #    )
 
-                #if not torch.isfinite(mlm).all():
+                #if not torch.isfinite(mlf).all():
                 #    raise ValueError(
-                #        f"NaN/Inf in MLM for patient {data['patient_id']} "
-                #        f"min={mlm.min()}, max={mlm.max()}"
+                #        f"NaN/Inf in MLF for patient {data['patient_id']} "
+                #        f"min={mlf.min()}, max={mlf.max()}"
                 #    )
 
                 full_tab = np.load(self.path.parent / "table" / p.name / f"{data['patient_id']}.npz")
@@ -71,17 +71,17 @@ class PatientDataModule:
                 #    )
 
                 if p.name == "train":
-                    x_train.append(torch.cat([tit, mlm, tab], dim=0))
+                    x_train.append(torch.cat([tit, mlf, tab], dim=0))
                     y_train.append(
                         torch.tensor([full_tab["targetPEEP"].item()], dtype=torch.float32)
                     )
                 elif p.name == "val":
-                    x_val.append(torch.cat([tit, mlm, tab], dim=0))
+                    x_val.append(torch.cat([tit, mlf, tab], dim=0))
                     y_val.append(
                         torch.tensor([full_tab["targetPEEP"].item()], dtype=torch.float32)
                     )
                 else:
-                    x_test.append(torch.cat([tit, mlm, tab], dim=0))
+                    x_test.append(torch.cat([tit, mlf, tab], dim=0))
                     y_test.append(
                         torch.tensor([full_tab["targetPEEP"].item()], dtype=torch.float32)
                     )

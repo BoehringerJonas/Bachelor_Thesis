@@ -28,7 +28,7 @@ class FeatureZone:
     Pipeline Overview
     -----------------
     1. **Data Loading**
-       - Loads cleaned patient EIT sequences (MLM and TIT datasets) from disk.
+       - Loads cleaned patient EIT sequences (MLF and TIT datasets) from disk.
        - Each patient has separate files for EIT images and optionally
          pressure and volume signals.
 
@@ -49,7 +49,7 @@ class FeatureZone:
        - Features are saved in compressed `.npz` files for each patient:
            * `Res_*id*.npz`: raw ResNet features
            * `LSTM_*id*.npz`: temporal LSTM features
-       - Separate files are created for MLM (maximal flow maneuver) and
+       - Separate files are created for MLF (maximal flow maneuver) and
          TIT (titration) datasets, as well as for 3D and VP variants.
 
     5. **Design Notes**
@@ -86,7 +86,7 @@ class FeatureZone:
         self.set = set
 
         if split == "train":
-            self.MLMmin, self.MLMmax, self.MLMpmean, self.MLMpstd, self.MLMvmean, self.MLMvstd = self.get_global("MLM")
+            self.MLFmin, self.MLFmax, self.MLFpmean, self.MLFpstd, self.MLFvmean, self.MLFvstd = self.get_global("MLF")
             self.TITmin, self.TITmax, self.TITpmean, self.TITpstd, self.TITvmean, self.TITvstd = self.get_global("TIT")
 
             self.amean, self.astd, self.bmean, self.bstd, self.wmean, self.wstd, self.hmean, self.hstd, self.pmean, self.pstd = self.get_tglobal()
@@ -96,12 +96,12 @@ class FeatureZone:
             np.savez_compressed(
                 spath / "train_stats.npz",
 
-                MLMmin = self.MLMmin,
-                MLMmax = self.MLMmax,
-                MLMpmean = self.MLMpmean,
-                MLMpstd = self.MLMpstd,
-                MLMvmean = self.MLMvmean,
-                MLMvstd = self.MLMvstd,
+                MLFmin = self.MLFmin,
+                MLFmax = self.MLFmax,
+                MLFpmean = self.MLFpmean,
+                MLFpstd = self.MLFpstd,
+                MLFvmean = self.MLFvmean,
+                MLFvstd = self.MLFvstd,
 
                 TITmin = self.TITmin,
                 TITmax = self.TITmax,
@@ -130,12 +130,12 @@ class FeatureZone:
 
             stats = np.load(spath / "train_stats.npz")
 
-            self.MLMmin = stats["MLMmin"]
-            self.MLMmax  = stats["MLMmax"]
-            self.MLMpmean = stats["MLMpmean"]
-            self.MLMpstd  = stats["MLMpstd"]
-            self.MLMvmean = stats["MLMvmean"]
-            self.MLMvstd  = stats["MLMvstd"]
+            self.MLFmin = stats["MLFmin"]
+            self.MLFmax  = stats["MLFmax"]
+            self.MLFpmean = stats["MLFpmean"]
+            self.MLFpstd  = stats["MLFpstd"]
+            self.MLFvmean = stats["MLFvmean"]
+            self.MLFvstd  = stats["MLFvstd"]
 
             self.TITmin = stats["TITmin"]
             self.TITmax  = stats["TITmax"]
@@ -158,16 +158,16 @@ class FeatureZone:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         logger.info(f"Using device: {self.device}")
-        self.MLMmin = torch.tensor(self.MLMmin, device=self.device)
-        self.MLMmax = torch.tensor(self.MLMmax, device=self.device)
+        self.MLFmin = torch.tensor(self.MLFmin, device=self.device)
+        self.MLFmax = torch.tensor(self.MLFmax, device=self.device)
 
         self.TITmin = torch.tensor(self.TITmin, device=self.device)
         self.TITmax = torch.tensor(self.TITmax, device=self.device)
 
-        self.MLMpmean = torch.tensor(self.MLMpmean, device=self.device)
-        self.MLMpstd  = torch.tensor(self.MLMpstd, device=self.device)
-        self.MLMvmean = torch.tensor(self.MLMvmean, device=self.device)
-        self.MLMvstd  = torch.tensor(self.MLMvstd, device=self.device)
+        self.MLFpmean = torch.tensor(self.MLFpmean, device=self.device)
+        self.MLFpstd  = torch.tensor(self.MLFpstd, device=self.device)
+        self.MLFvmean = torch.tensor(self.MLFvmean, device=self.device)
+        self.MLFvstd  = torch.tensor(self.MLFvstd, device=self.device)
 
         self.TITpmean = torch.tensor(self.TITpmean, device=self.device)
         self.TITpstd  = torch.tensor(self.TITpstd, device=self.device)
@@ -191,14 +191,14 @@ class FeatureZone:
         """
         Iterates over the cleaned patients and extracts features using ResNet followed by
         LSTM, producing image-based features (ResNet) and temporal features (LSTM).
-        The MLM (maximum flow maneuver) and TIT (titration) are used as separate inputs.
+        The MLF (maximum flow maneuver) and TIT (titration) are used as separate inputs.
 
         To enable comparative feature evaluation, two variants are generated:
         a 3D version, where grayscale images are replicated across all three RGB channels,
         and a VP version, where the second channel represents pressure and the third channel
         represents volume from the time series to construct RGB images.
 
-        Each MLM and titration feature set is saved to a file in a new feature directory.
+        Each MLF and titration feature set is saved to a file in a new feature directory.
         Files named `Res_<id>.npz` contain features after ResNet extraction, and
         `LSTM_<id>.npz` contain the final features after LSTM processing.
         """
@@ -213,16 +213,16 @@ class FeatureZone:
         for idx, p in enumerate(pat_folders, start=1):
             logger.info(f"Starting iteration for: {p.name} pat: {idx} / {len(pat_folders)}")
             logger.info("3D")
-            logger.info("MLM")
-            mlmPath = p / "MLMeit.npz"
+            logger.info("MLF")
+            mlfPath = p / "MLFeit.npz"
 
-            if not mlmPath.exists():
-                logger.warning(f"Missing file, skipping: {mlmPath}")
+            if not mlfPath.exists():
+                logger.warning(f"Missing file, skipping: {mlfPath}")
                 continue
 
-            mlmData = np.load(mlmPath)
-            mlmRes3D = self.extract_resnet_features3D(mlmData['EITdata'], "MLM")
-            mlmLSTM3D = self.extract_LSTM_features(mlmRes3D).cpu()
+            mlfData = np.load(mlfPath)
+            mlfRes3D = self.extract_resnet_features3D(mlfData['EITdata'], "MLF")
+            mlfLSTM3D = self.extract_LSTM_features(mlfRes3D).cpu()
 
             logger.info("TIT")
             titPath = p / "TITeit.npz"
@@ -237,26 +237,26 @@ class FeatureZone:
             np.savez_compressed(
                 save_path / f"{p.name}_Res.npz",
                 patient_id = p.name,
-                mlm = mlmRes3D.cpu().numpy(),
+                mlf = mlfRes3D.cpu().numpy(),
                 tit = titRes3D.cpu().numpy(),
             )
 
             np.savez_compressed(
                 save_path / f"{p.name}_LSTM.npz",
                 patient_id = p.name,
-                mlm = mlmLSTM3D.cpu().numpy(),
+                mlf = mlfLSTM3D.cpu().numpy(),
                 tit = titLSTM3D.cpu().numpy(),
             )
-            del mlmLSTM3D, titLSTM3D
+            del mlfLSTM3D, titLSTM3D
 
             logger.info("vp")
-            mlmResVP = self.extract_resnet_featuresVP(
-                (mlmData['EITdata']), 
-                (mlmData['pressureData']), 
-                (mlmData['volumeData']),
-                "MLM"
+            mlfResVP = self.extract_resnet_featuresVP(
+                (mlfData['EITdata']), 
+                (mlfData['pressureData']), 
+                (mlfData['volumeData']),
+                "MLF"
                 )
-            mlmLSTMVP = self.extract_LSTM_features(mlmResVP).cpu()
+            mlfLSTMVP = self.extract_LSTM_features(mlfResVP).cpu()
 
             titResVP = self.extract_resnet_featuresVP(
                 (titData['EITdata']), 
@@ -273,14 +273,14 @@ class FeatureZone:
             np.savez_compressed(
                 save_path / f"{p.name}_Res.npz",
                 patient_id = p.name,
-                mlm = mlmResVP.cpu().numpy(),
+                mlf = mlfResVP.cpu().numpy(),
                 tit = titResVP.cpu().numpy(),
             )
 
             np.savez_compressed(
                 save_path / f"{p.name}_LSTM.npz",
                 patient_id = p.name,
-                mlm = mlmLSTMVP.cpu().numpy(),
+                mlf = mlfLSTMVP.cpu().numpy(),
                 tit = titLSTMVP.cpu().numpy(),
             )
 
@@ -372,7 +372,7 @@ class FeatureZone:
         
         Input:
         modality : str
-            dataset identifier ("MLM", "TIT")
+            dataset identifier ("MLF", "TIT")
 
         Returns:
         arr_mean : numpy.float32
@@ -502,8 +502,8 @@ class FeatureZone:
 
                 mask = ~torch.isnan(chunk)
                 
-                if modality == "MLM":
-                    chunk[mask] = (chunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
+                if modality == "MLF":
+                    chunk[mask] = (chunk[mask] - self.MLFmin) / (self.MLFmax - self.MLFmin + 1e-6)
                 else:
                     chunk[mask] = (chunk[mask] - self.TITmin) / (self.TITmax - self.TITmin + 1e-6)
 
@@ -568,8 +568,8 @@ class FeatureZone:
                 
 
                 mask = ~torch.isnan(chunk)
-                if modality == "MLM":
-                    chunk[mask] = (chunk[mask] - self.MLMmin) / (self.MLMmax - self.MLMmin + 1e-6)
+                if modality == "MLF":
+                    chunk[mask] = (chunk[mask] - self.MLFmin) / (self.MLFmax - self.MLFmin + 1e-6)
                 else:
                     chunk[mask] = (chunk[mask] - self.TITmin) / (self.TITmax - self.TITmin + 1e-6)
                 chunk[:,0,:,:][mask[:,0,:,:]] = (chunk[:,0,:,:][mask[:,0,:,:]] - 0.485) / 0.229   
@@ -578,9 +578,9 @@ class FeatureZone:
                 p = torch.from_numpy(pre[0, i:i+batch_size]).float().to(self.device)
                 v = torch.from_numpy(vol[0, i:i+batch_size]).float().to(self.device)
                                         
-                if modality == "MLM":
-                    p = (p - self.MLMpmean) / (self.MLMpstd + 1e-6)
-                    v = (v - self.MLMvmean) / (self.MLMvstd + 1e-6)
+                if modality == "MLF":
+                    p = (p - self.MLFpmean) / (self.MLFpstd + 1e-6)
+                    v = (v - self.MLFvmean) / (self.MLFvstd + 1e-6)
                 else:
                     p = (p - self.TITpmean) / (self.TITpstd + 1e-6)
                     v = (v - self.TITvmean) / (self.TITvstd + 1e-6)

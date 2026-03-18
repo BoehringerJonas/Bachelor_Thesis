@@ -80,7 +80,7 @@ class SplitTit:
         w : str
             patient id
         modality : str
-            dataset identifier ("TITeit" or "MLMeit")
+            dataset identifier ("TITeit" or "MLFeit")
         """
         id = path.name
         save_path = path.parent.parent.parent  / 'splitTit' / path.parent.name / id
@@ -91,7 +91,7 @@ class SplitTit:
             pressureData=pData,
             volumeData=vData,
         )
-        (save_path / "MLMeit.npz").write_bytes((self.path / path.parent.name / id / "MLMeit.npz").read_bytes())
+        (save_path / "MLFeit.npz").write_bytes((self.path / path.parent.name / id / "MLFeit.npz").read_bytes())
         (save_path / "table.npz").write_bytes((self.path / path.parent.name / id / "table.npz").read_bytes())
 
 def entrypoint():
