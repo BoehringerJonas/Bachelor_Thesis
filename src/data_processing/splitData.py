@@ -19,7 +19,7 @@ class SplitData():
 
 
     def run(self):
-        table = pd.read_csv(self.path / "raw" / "MLM"/ "peep_tabular_data.csv")
+        table = pd.read_csv(self.path / "raw" / "MLF"/ "peep_tabular_data.csv")
         table = table[~table["Pat-ID"].str.startswith("AD")]
         pat = table[["Pat-ID", "PEEP"]].to_numpy()
 

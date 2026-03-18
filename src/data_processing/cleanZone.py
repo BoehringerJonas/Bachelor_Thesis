@@ -31,7 +31,7 @@ class CleanZone:
     3. **Saving Cleaned Data**
        - Saves processed data in a structured per-patient folder under `clean/`.
        - Each patient folder contains:
-           * `MLMeit.npz` or `TITeit.npz`: normalized EIT, pressure, and volume arrays.
+           * `MLFeit.npz` or `TITeit.npz`: normalized EIT, pressure, and volume arrays.
            * `table.npz`: patient metadata including age, BMI, sex, weight, height,
              smoking status, Ppeak, Pmean, and target PEEP.
        - Files are saved using `np.savez_compressed` to reduce storage usage.
@@ -41,14 +41,14 @@ class CleanZone:
        - Uses global normalization to standardize across all patients.
        - Ensures that each patient has a dedicated folder for reproducible
          downstream training.
-       - Supports both MLM (maximal flow maneuver) and TIT (titration) datasets.
+       - Supports both MLF (maximal flow maneuver) and TIT (titration) datasets.
 
     Attributes
     ----------
     input_path : Path
         Base directory containing raw EIT, pressure, volume, and tabular data.
-    MLMmean, MLMstd, MLMpmean, MLMpstd, MLMvmean, MLMvstd : float
-        Global mean and standard deviation for MLM images, pressure, and volume.
+    MLFmean, MLFstd, MLFpmean, MLFpstd, MLFvmean, MLFvstd : float
+        Global mean and standard deviation for MLF images, pressure, and volume.
     TITmean, TITstd, TITpmean, TITpstd, TITvmean, TITvstd : float
         Global mean and standard deviation for TIT images, pressure, and volume.
     """
@@ -56,7 +56,7 @@ class CleanZone:
         input_path : Path, 
         ) -> None:
         """
-        Init global mean and std for MLM and TIT bevor running the clean stage.
+        Init global mean and std for MLF and TIT bevor running the clean stage.
         """
         self.input_path = input_path
 
@@ -68,39 +68,39 @@ class CleanZone:
         raw -> clean
 
         |- clean
-            |- MLMeit.npz
+            |- MLFeit.npz
             |- table.npz
             |- TITeit.npz
         """
-        csv_path = self.input_path/ 'raw' / 'MLM' / 'peep_tabular_data.csv'
+        csv_path = self.input_path/ 'raw' / 'MLF' / 'peep_tabular_data.csv'
         table = pd.read_csv(csv_path)
         table = table[~table["Pat-ID"].str.startswith("AD")]
         table = table.set_index("Pat-ID")
         for id in table.index:
             logger.info("Starting itteration for: " + str(id))
 
-            path = self.input_path / 'raw' / 'MLM' / id / f"{id}_images_part_sb.mat"
+            path = self.input_path / 'raw' / 'MLF' / id / f"{id}_images_part_sb.mat"
 
             if not path.exists():
                 logger.warning(f"Missing file, skipping: {path}")
                 continue
                 
-            MLMmat = scipy.io.loadmat(path)
-            key = list(MLMmat.keys())[3]
-            MLM = np.transpose(MLMmat[key], (2,0,1)).astype(np.float32)
-            #MLM = np.nan_to_num(MLM, nan=0.0)
+            MLFmat = scipy.io.loadmat(path)
+            key = list(MLFmat.keys())[3]
+            MLF = np.transpose(MLFmat[key], (2,0,1)).astype(np.float32)
+            #MLF = np.nan_to_num(MLF, nan=0.0)
 
-            pMLMmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLM' / id / f"{id}_pressure_filtered_sb.mat")
-            pkey = list(pMLMmat.keys())[3]
-            pMLM = pMLMmat[pkey].astype(np.float32) 
-            vMLMmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLM' / id / f"{id}_volume_sb.mat")
-            vkey = list(vMLMmat.keys())[3]
-            vMLM = vMLMmat[vkey].astype(np.float32) 
+            pMLFmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLF' / id / f"{id}_pressure_filtered_sb.mat")
+            pkey = list(pMLFmat.keys())[3]
+            pMLF = pMLFmat[pkey].astype(np.float32) 
+            vMLFmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLF' / id / f"{id}_volume_sb.mat")
+            vkey = list(vMLFmat.keys())[3]
+            vMLF = vMLFmat[vkey].astype(np.float32) 
         
-            logger.info("Save MLM")
-            self.save_npz(MLM, pMLM, vMLM, id, 'MLMeit')
+            logger.info("Save MLF")
+            self.save_npz(MLF, pMLF, vMLF, id, 'MLFeit')
             
-            del MLM, MLMmat, pMLMmat, vMLMmat, pkey, vkey, key
+            del MLF, MLFmat, pMLFmat, vMLFmat, pkey, vkey, key
 
             TITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / id / f"{id}_images_part_tit.mat")
             key = list(TITmat.keys())[3]
@@ -157,7 +157,7 @@ class CleanZone:
         w : str
             patient id
         modality : str
-            dataset identifier ("TITeit" or "MLMeit")
+            dataset identifier ("TITeit" or "MLFeit")
         """
         save_path = self.input_path / 'clean' / id
         save_path.mkdir(parents = True, exist_ok = True)
