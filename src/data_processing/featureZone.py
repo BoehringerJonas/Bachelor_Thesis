@@ -626,5 +626,5 @@ class FeatureZone:
         seq = spatial_seq.unsqueeze(0)              # (1, T, 2048)
         out, (h_n, c_n) = self.lstm(seq)
 
-        return h_n[-1]                             # (1, 512)
+        return torch.cst([h_n[-1], out.mean(dim=1), out.max(dim=1).values], dim=0)                         # 3*(1, 512) = (1, 1536)
     
