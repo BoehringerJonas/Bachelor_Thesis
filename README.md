@@ -15,8 +15,8 @@ pip install -r requirements.txt
 ```
 
 ## Usage
-python workflow.py --input_path D:\BA\workspace\test_data
+python workflow.py --input_path D:\BA\workspace\data
 
-python workflow.py --input_path D:\BA\workspace\test_data\feature\VP --output_path D:\BA\workspace\main\src\ml_training_validation\output
+python workflow.py --input_path D:\BA\workspace\data\feature --output_path D:\BA\workspace\data\output
 
 ## Authors and acknowledgment
