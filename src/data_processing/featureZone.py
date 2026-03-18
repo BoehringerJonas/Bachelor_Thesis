@@ -182,7 +182,8 @@ class FeatureZone:
             input_size=2048,
             hidden_size=512,
             num_layers=2,
-            batch_first=True
+            batch_first=True,
+            dropout=0.3
         ).to(self.device)
 
 
@@ -504,7 +505,7 @@ class FeatureZone:
                 if modality == "MLF":
                     chunk[mask] = (chunk[mask] - self.MLFmin) / (self.MLFmax - self.MLFmin + 1e-6)
                 else:
-                    chunk[mask] = (chunk[mask] - self.MLFmin) / (self.MLFmax - self.MLFmin + 1e-6)
+                    chunk[mask] = (chunk[mask] - self.TITmin) / (self.TITmax - self.TITmin + 1e-6)
 
                 chunk[:,0,:,:][mask[:,0,:,:]] = (chunk[:,0,:,:][mask[:,0,:,:]] - 0.485) / 0.229
                 chunk[:,1,:,:][mask[:,1,:,:]] = (chunk[:,1,:,:][mask[:,1,:,:]] - 0.456) / 0.224
