@@ -4,6 +4,7 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 from typing import Tuple
+from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 
@@ -23,6 +24,7 @@ class PatientDataModule:
     
     def run(self) -> Tuple[DataLoader, DataLoader, DataLoader, int]:
         scaler = StandardScaler()
+        pca = PCA(n_components=23)
 
         x_train = []
         x_val = []
@@ -106,6 +108,10 @@ class PatientDataModule:
         x_train_np = scaler.fit_transform(x_train_np)
         x_val_np   = scaler.transform(x_val_np)
         x_test_np  = scaler.transform(x_test_np)
+
+        x_train = pca.fit_transform(x_train)
+        x_val   = pca.transform(x_val)
+        x_test  = pca.transform(x_test)
 
         x_train = torch.from_numpy(x_train_np).float()
         x_val   = torch.from_numpy(x_val_np).float()
