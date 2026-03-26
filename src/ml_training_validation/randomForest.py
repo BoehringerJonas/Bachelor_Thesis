@@ -1,5 +1,8 @@
 import joblib
 import logging
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
@@ -28,9 +31,9 @@ class RandomForest:
 
         self.rf = RandomForestRegressor(
             n_estimators=500,
-            oob_score=True,
+            oob_score=False,
             random_state=42,
-            n_jobs=-1
+            n_jobs=1
         )
 
     def run(self, tune_hyperparameters: bool = False) -> None:
@@ -48,7 +51,7 @@ class RandomForest:
                 param_distributions=param_dist,
                 n_iter=20,
                 scoring='neg_mean_squared_error',
-                cv=5,
+                cv=3,
                 random_state=42,
                 n_jobs=-1
             )

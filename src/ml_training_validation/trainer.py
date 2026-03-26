@@ -69,6 +69,7 @@ class Trainer:
         logger.info(f"Test MAE:  {test_mae:.2f}")
         logger.info(f"Test RMSE: {test_rmse:.2f}")
 
+        plt.figure()
         plt.plot(train_losses, label="Train")
         plt.plot(val_losses, label="Validation")
         plt.legend()
