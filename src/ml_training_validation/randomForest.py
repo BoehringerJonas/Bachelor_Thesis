@@ -17,11 +17,13 @@ logger = logging.getLogger("Random Forest")
 
 
 class RandomForest:
-    def __init__(self, x_train: np.array, y_train: np.array, x_test: np.array, y_test: np.array, path: Path) -> None:
+    def __init__(self, x_train: np.array, y_train: np.array, x_test: np.array, y_test: np.array, pmean:float, pstd:float, path: Path) -> None:
         self.x_train = x_train
         self.x_test = x_test
         self.y_train = y_train
         self.y_test = y_test
+        self.pmean = pmean
+        self.pstd = pstd
         self.path = path
 
         self.rf = RandomForestRegressor(
@@ -64,8 +66,11 @@ class RandomForest:
         if getattr(self.rf, "oob_score_", None) is not None:
             logger.info(f"OOB Score: {self.rf.oob_score_}")
 
-        mae = mean_absolute_error(self.y_test, y_pred)
-        rmse = np.sqrt(mean_squared_error(self.y_test, y_pred))
+        y_pred_real = y_pred * self.pstd + self.pmean
+        y_true_real = self.y_true * self.pstd + self.pmean
+
+        mae = mean_absolute_error(y_true_real, y_pred_real)
+        rmse = np.sqrt(mean_squared_error(y_true_real, y_pred_real))
 
         logger.info(f"Model mean absolut error: {mae}")
         logger.info(f"Model mean squared error: {rmse}")

@@ -12,46 +12,7 @@ logging.basicConfig(
 logger = logging.getLogger("clean")
 
 class CleanZone:
-    """
-    Pipeline for preprocessing raw EIT, pressure, and volume data for each patient.
 
-    This class implements a "silver layer" clean stage that standardizes
-    multi-modal patient data, normalizes it using global statistics, and
-    saves it in structured `.npz` files suitable for downstream machine
-    learning models (e.g., CNNs or LSTMs).
-
-    Pipeline Overview
-    -----------------
-
-    2. **Patient-wise Data Preprocessing**
-       For each patient:
-       - Load raw `.mat` files for EIT images, pressure, and volume.
-       - Convert EIT images to shape `(T, H, W)` and standardize per pixel.
-
-    3. **Saving Cleaned Data**
-       - Saves processed data in a structured per-patient folder under `clean/`.
-       - Each patient folder contains:
-           * `MLFeit.npz` or `TITeit.npz`: normalized EIT, pressure, and volume arrays.
-           * `table.npz`: patient metadata including age, BMI, sex, weight, height,
-             smoking status, Ppeak, Pmean, and target PEEP.
-       - Files are saved using `np.savez_compressed` to reduce storage usage.
-
-    4. **Design Considerations**
-       - Handles missing files gracefully by skipping them with a warning.
-       - Uses global normalization to standardize across all patients.
-       - Ensures that each patient has a dedicated folder for reproducible
-         downstream training.
-       - Supports both MLF (maximal flow maneuver) and TIT (titration) datasets.
-
-    Attributes
-    ----------
-    input_path : Path
-        Base directory containing raw EIT, pressure, volume, and tabular data.
-    MLFmean, MLFstd, MLFpmean, MLFpstd, MLFvmean, MLFvstd : float
-        Global mean and standard deviation for MLF images, pressure, and volume.
-    TITmean, TITstd, TITpmean, TITpstd, TITvmean, TITvstd : float
-        Global mean and standard deviation for TIT images, pressure, and volume.
-    """
     def __init__(self, 
         input_path : Path, 
         ) -> None:
