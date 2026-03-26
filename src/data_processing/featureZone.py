@@ -84,6 +84,11 @@ class FeatureZone:
         self.path = path
         self.split = split
         self.set = set
+                
+        if self.set == "full_tit":
+            self.folder = "clean"
+        elif self.set == "half_tit":
+            self.folder = self.set
 
         if split == "train":
             self.MLFmin, self.MLFmax, self.MLFpmean, self.MLFpstd, self.MLFvmean, self.MLFvstd = self.get_global("MLF")
@@ -187,6 +192,7 @@ class FeatureZone:
         ).to(self.device)
 
         self.resnet_reduce = nn.Linear(2048, 256).to(self.device)
+        self.lstm_reduce = nn.Linear(384, 128).to(self.device)
 
 
     def run(self) -> None:
@@ -211,7 +217,7 @@ class FeatureZone:
         self.resnet.eval()
         self.lstm.eval()
 
-        pat_folders = sorted([f for f in (self.path / self.set / self.split).iterdir() if f.is_dir()])
+        pat_folders = sorted([f for f in (self.path / self.folder / self.split).iterdir() if f.is_dir()])
         for idx, p in enumerate(pat_folders, start=1):
             logger.info(f"Starting iteration for: {p.name} pat: {idx} / {len(pat_folders)}")
             logger.info("3D")
@@ -316,7 +322,7 @@ class FeatureZone:
         asq_sum = bsq_sum = wsq_sum = hsq_sum = psq_sum = 0.0
         count = 0
 
-        pat_folders = sorted([f for f in (self.path / self.set / self.split).iterdir() if f.is_dir()])
+        pat_folders = sorted([f for f in (self.path / self.folder / self.split).iterdir() if f.is_dir()])
         assert len(pat_folders) != 0, "No patient folders found in the path!"
         for p in pat_folders:
             path = p / "table.npz"
@@ -398,7 +404,7 @@ class FeatureZone:
         amax = -np.inf
         amin = np.inf
 
-        pat_folders = sorted([f for f in (self.path / self.set / self.split).iterdir() if f.is_dir()])
+        pat_folders = sorted([f for f in (self.path / self.folder / self.split).iterdir() if f.is_dir()])
         for p in pat_folders:
             path = p / f"{modality}eit.npz"
             

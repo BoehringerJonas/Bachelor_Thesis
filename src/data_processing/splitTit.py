@@ -83,7 +83,7 @@ class SplitTit:
             dataset identifier ("TITeit" or "MLFeit")
         """
         id = path.name
-        save_path = path.parent.parent.parent  / 'splitTit' / path.parent.name / id
+        save_path = path.parent.parent.parent  / 'half_tit' / path.parent.name / id
         save_path.mkdir(parents = True, exist_ok = True)
         np.savez_compressed(
             save_path / f"{modality}.npz",
