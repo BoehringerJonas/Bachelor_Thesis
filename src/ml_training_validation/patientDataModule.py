@@ -2,8 +2,11 @@ import logging
 import numpy as np
 from pathlib import Path
 import torch
-from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.utils.data import DataLoader, TensorDataset
 from typing import Tuple
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+
 
 
 logging.basicConfig(
@@ -20,6 +23,9 @@ class PatientDataModule:
         self.batch_size = batch_size
     
     def run(self) -> Tuple[DataLoader, DataLoader, DataLoader, int]:
+        scaler = StandardScaler()
+        pca = PCA(n_components=23)
+
         x_train = []
         x_val = []
         x_test = []
@@ -63,7 +69,7 @@ class PatientDataModule:
 
 
 
-                tab = torch.from_numpy(tab)#.unsqueeze(0)
+                tab = torch.from_numpy(tab)*2.0 #.unsqueeze(0)
                 #if not torch.isfinite(tab).all():
                 #    raise ValueError(
                 #        f"NaN/Inf in TAB for patient {data['patient_id']} "
@@ -95,6 +101,21 @@ class PatientDataModule:
         x_test  = torch.stack(x_test, dim=0)
         y_test  = torch.stack(y_test, dim=0)
 
+        x_train_np = x_train.detach().cpu().numpy()
+        x_val_np   = x_val.detach().cpu().numpy()
+        x_test_np  = x_test.detach().cpu().numpy()
+
+        x_train_np = scaler.fit_transform(x_train_np)
+        x_val_np   = scaler.transform(x_val_np)
+        x_test_np  = scaler.transform(x_test_np)
+
+        x_train = pca.fit_transform(x_train)
+        x_val   = pca.transform(x_val)
+        x_test  = pca.transform(x_test)
+
+        x_train = torch.from_numpy(x_train_np).float()
+        x_val   = torch.from_numpy(x_val_np).float()
+        x_test  = torch.from_numpy(x_test_np).float()
 
         train_set = TensorDataset(x_train, y_train)
         train = DataLoader(train_set, self.batch_size, shuffle=True)
