@@ -58,7 +58,7 @@ class XGBoost:
         logger.info(f"Model mean squared error: {rmse}")
 
         fig, ax = plt.subplots(figsize=(6, 6))
-        ax.scatter(self.y_test, y_pred)
+        ax.scatter(y_true_real, y_pred_real)
         ax.set_xlabel("True Values")
         ax.set_ylabel("Predictions")
         ax.set_title("Prediction vs True")

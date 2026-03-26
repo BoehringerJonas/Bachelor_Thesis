@@ -5,7 +5,6 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 from typing import Tuple
-from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 
@@ -27,7 +26,6 @@ class PatientDataModule:
         #scaler_tit = StandardScaler(with_mean=True, with_std=True)
         #scaler_mlf = StandardScaler(with_mean=True, with_std=True)
         scaler_tab = StandardScaler(with_mean=True, with_std=True)
-        pca = PCA(n_components=23)
 
         x_train_tit = []
         x_train_mlf = []
@@ -136,18 +134,15 @@ class PatientDataModule:
         #x_train_tit = scaler_tit.fit_transform(x_train_tit)
         #x_train_mlf = scaler_mlf.fit_transform(x_train_mlf)
         x_train_tab = scaler_tab.fit_transform(x_train_tab)
-        x_train_tab = pca.fit_transform(x_train_tab)
         x_train_tab = np.concatenate([x_train_tab, x_train_tab_cat], axis=1)
         #x_val_tit = scaler_tit.transform(x_val_tit)
         #x_val_mlf = scaler_mlf.transform(x_val_mlf)
         x_val_tab = scaler_tab.transform(x_val_tab)
-        x_val_tab   = pca.transform(x_val_tab)
         x_val_tab   = np.concatenate([x_val_tab, x_val_tab_cat], axis=1)
 
         #x_test_tit = scaler_tit.transform(x_test_tit)
         #x_test_mlf = scaler_mlf.transform(x_test_mlf)
         x_test_tab = scaler_tab.transform(x_test_tab)
-        x_test_tab  = pca.transform(x_test_tab)
         x_test_tab  = np.concatenate([x_test_tab, x_test_tab_cat], axis=1)
 
 
@@ -179,6 +174,5 @@ class PatientDataModule:
         #joblib.dump(scaler_tit, self.path / "scaler_tit.joblib")
         #joblib.dump(scaler_mlf, self.path / "scaler_mlf.joblib")
         joblib.dump(scaler_tab, self.path / "scaler_tab.joblib")
-        joblib.dump(pca, self.path / "pca_tab.joblib")
 
         return train, val, test, x_train.shape[1]

@@ -70,7 +70,7 @@ class RandomForest:
             logger.info(f"OOB Score: {self.rf.oob_score_}")
 
         y_pred_real = y_pred * self.pstd + self.pmean
-        y_true_real = self.y_true * self.pstd + self.pmean
+        y_true_real = self.y_test * self.pstd + self.pmean
 
         mae = mean_absolute_error(y_true_real, y_pred_real)
         rmse = np.sqrt(mean_squared_error(y_true_real, y_pred_real))
@@ -80,7 +80,7 @@ class RandomForest:
 
         fig, ax = plt.subplots(figsize=(6, 6))
 
-        ax.scatter(self.y_test, y_pred)
+        ax.scatter(y_true_real, y_pred_real)
         ax.set_xlabel("True Values")
         ax.set_ylabel("Predictions")
         ax.set_title("Prediction vs True")
