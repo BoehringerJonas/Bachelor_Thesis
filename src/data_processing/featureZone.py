@@ -179,12 +179,14 @@ class FeatureZone:
 
         logger.info("def LSTM")
         self.lstm = torch.nn.LSTM(  #Init encoder from LSTM
-            input_size=2048,
-            hidden_size=512,
+            input_size=256,
+            hidden_size=128, #testen von 64
             num_layers=2,
             batch_first=True,
-            dropout=0.3
+            dropout=0.1
         ).to(self.device)
+
+        self.resnet_reduce = nn.Linear(2048, 256).to(self.device)
 
 
     def run(self) -> None:
@@ -523,6 +525,8 @@ class FeatureZone:
                 features = self.resnet(chunk)         # (B,2048,1,1)
                 features = features.flatten(1)        # (B,2048)
 
+                features = F.relu(self.resnet_reduce(features))#(B, 256)
+
                 spatial_features.append(features)
 
         return torch.cat(spatial_features, dim=0)
@@ -599,6 +603,8 @@ class FeatureZone:
                 features = self.resnet(vp)          # (B,2048,1,1)
                 features = features.flatten(1)      # (B,2048)
 
+                features = F.relu(self.resnet_reduce(features))
+
                 spatial_features.append(features)
 
         return torch.cat(spatial_features, dim=0)
@@ -624,8 +630,9 @@ class FeatureZone:
         """
         logger.info("LSTM features")
         spatial_seq = spatial_seq.to(self.device)
-        seq = spatial_seq.unsqueeze(0)              # (1, T, 2048)
+        seq = spatial_seq.unsqueeze(0)              # (1, T, 256)
         out, (h_n, c_n) = self.lstm(seq)
 
-        return torch.cat([h_n[-1], out.mean(dim=1), out.max(dim=1).values], dim=1)                         # 3*(1, 512) = (1, 1536)
-    
+        lstm_features = torch.cat([h_n[-1], out.mean(dim=1), out.max(dim=1).values], dim=1)                         # 3*(1, 128) = (1, 384)
+        lstm_features = F.relu(self.lstm_reduce(lstm_features))                                                     # (1,128)  testen mit end ziel 16 - 32
+        return lstm_features  
