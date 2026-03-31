@@ -1,28 +1,36 @@
 import torch.nn as nn
+import torch
 
 class MLP(nn.Module):
-    def __init__(self, input_size, output_size, hidden_sizes, dropout_rate=0.05): #Hidden Layer = 2 begründen/ testen
-        super(MLP, self).__init__()
-        
-        # Create list to hold all layers
-        layers = []
-        
-        # Input layer
-        layers.append(nn.Linear(input_size, hidden_sizes[0]))
-        layers.append(nn.ReLU())
-        layers.append(nn.Dropout(dropout_rate))
-        
-        # Hidden layers
-        for i in range(len(hidden_sizes)-1):
-            layers.append(nn.Linear(hidden_sizes[i], hidden_sizes[i+1]))
-            layers.append(nn.ReLU())
-        
-        # Output layer
-        layers.append(nn.Linear(hidden_sizes[-1], output_size))
-        
-        # Combine all layers into a sequential model
-        self.model = nn.Sequential(*layers)
+    def __init__(self, mlf_size:int, tit_size:int, tab_size:int) -> None:
+        super().__init__()
+        self.mlf_net = nn.Sequential(
+            nn.Linear(mlf_size, 64),
+            nn.ReLU(),
+            nn.Dropout(0.05)
+        )
+
+        self.tit_net = nn.Sequential(
+            nn.Linear(tit_size, 64),
+            nn.ReLU(),
+            nn.Dropout(0.05)
+        )
+
+        self.tab_net = nn.Sequential(
+            nn.Linear(tab_size, 16),
+            nn.ReLU()
+        )
+
+        self.head = nn.Sequential(
+            nn.Linear(64 + 64 + 16, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1)
+        )
     
-    def forward(self, x):
-        return self.model(x)
-    
+    def forward(self, mlf:torch.Tensor, tit:torch.Tensor, tab:torch.Tensor) -> torch.Tensor:
+        mlf = self.mlf_net(mlf)
+        tit = self.tit_net(tit)
+        tab = self.tab_net(tab)
+
+        x = torch.cat([mlf, tit, tab], dim=1)
+        return self.head(x)

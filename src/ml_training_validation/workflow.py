@@ -8,6 +8,7 @@ from patientDataModule import PatientDataModule
 from randomForest import RandomForest
 from xgBoost import XGBoost
 from trainer import Trainer
+from kfoldCV import KfoldCV
 
 
 logging.basicConfig(
@@ -47,11 +48,11 @@ class Workflow:
                     std = self.hpstd
 
                 logger.info(f"\n##########\nStart DataLoader\n##########")
-                train_loader, val_loader, test_loader, input_size = (
+                train_loader, val_loader, test_loader = (
                     PatientDataModule(self.input_path / i / j, 8).run()
                 )
-                logger.info(f"\n##########\Start MLP Trainer\n##########")
-                Trainer(train_loader, val_loader, test_loader, input_size, mean, std, self.output_path / i / j).run()
+                logger.info(f"\n##########\nStart MLP Trainer\n##########")
+                Trainer(train_loader, val_loader, test_loader, mean, std, self.output_path / i / j).run()
 
                 logger.info(f"\n##########\nMaschine Learning\n##########")
                 x_train, y_train = self.get_numpy(train_loader)
@@ -63,21 +64,30 @@ class Workflow:
 
                 RandomForest(x_new_train, y_new_train, x_test, y_test, mean, std, self.output_path / i / j).run()
                 XGBoost(x_train, y_train, x_val, y_val, x_test, y_test, mean, std, self.output_path / i / j).run()
+
+                logger.info(f"\n##########\K Fold CV\n##########")
+                #KfoldCV(x_new_train, y_new_train, x_test, y_test, mean, std, self.output_path / i / j).run()
+
         logger.info("\n##########\nFinished Process\n##########")
 
 
-    def get_numpy(self, arr:DataLoader) -> Tuple[np.ndarray, np.ndarray]:
-        x_list = []
-        y_list = []
+    def get_numpy(self, loader: DataLoader) -> Tuple[np.ndarray, np.ndarray]:
+        mlfs, tits, tabs, ys = [], [], [], []
 
-        for xb, yb in arr:
-            x_list.append(xb.numpy())
-            y_list.append(yb.numpy())
+        for mlf, tit, tab, y in loader:
+            mlfs.append(mlf.cpu().numpy())
+            tits.append(tit.cpu().numpy())
+            tabs.append(tab.cpu().numpy())
+            ys.append(y.cpu().numpy())
         
-        x_np = np.concatenate(x_list, axis=0)
-        y_np = np.concatenate(y_list, axis=0).ravel()
+        x_mlf = np.vstack(mlfs)
+        x_tit = np.vstack(tits)
+        x_tab = np.vstack(tabs)
+        y = np.vstack(ys).ravel()  # shape: (n_samples,)
 
-        return x_np, y_np
+        # Early Fusion
+        x = np.concatenate([x_mlf, x_tit, x_tab], axis=1)
+        return x, y
 
 
 def entrypoint():

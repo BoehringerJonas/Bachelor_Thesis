@@ -37,34 +37,51 @@ class SplitTit:
                     step_point.append(peaks[i])
             step_point.append(len(pre)-1)                    
 
-            eit_sig = []
-            pres_sig = []
-            vol_sig = []
+            half_eit, half_pres, half_vol = [], [], []
+            third_eit, third_pres, third_vol = [], [], []
+             
 
             for j in range(len(step_point) - 1):
+                start = step_point[j]
+                end = step_point[j + 1]
+                if end <= start:
+                    continue
+
                 if j % 2 == 0:
-                    start = step_point[j]
-                    end = step_point[j + 1]
-
-                    if end <= start:
-                        continue
-
                     a = eit[start:end]
                     b = pres[:, start:end]
                     c = vol[:, start:end]
                     if len(a) > 0 and len(b) > 0 and len(c) > 0:
-                        eit_sig.append(a)
-                        pres_sig.append(b)
-                        vol_sig.append(c)
+                        half_eit.append(a)
+                        half_pres.append(b)
+                        half_vol.append(c)
                     
                     else:
                         logger.warning(f"No valid EIT segment found: {path}")
 
-            eit_sig = np.concatenate(eit_sig, axis=0)
-            pres_sig = np.concatenate(pres_sig, axis=1)
-            vol_sig = np.concatenate(vol_sig, axis=1)
-            
-            self.save_npz(eit_sig, pres_sig, vol_sig, p,"TITeit")
+                if j % 3 == 0:
+                    a = eit[start:end]
+                    b = pres[:, start:end]
+                    c = vol[:, start:end]
+                    if len(a) > 0 and len(b) > 0 and len(c) > 0:
+                        third_eit.append(a)
+                        third_pres.append(b)
+                        third_vol.append(c)
+                    
+                    else:
+                        logger.warning(f"No valid EIT segment found: {path}")
+
+
+            half_eit = np.concatenate(half_eit, axis=0)
+            half_pres = np.concatenate(half_pres, axis=1)
+            half_vol = np.concatenate(half_vol, axis=1)           
+            self.save_npz(half_eit, half_pres, half_vol, p,"half_tit")
+
+            third_eit = np.concatenate(third_eit, axis=0)
+            third_pres = np.concatenate(third_pres, axis=1)
+            third_vol = np.concatenate(third_vol, axis=1)
+            self.save_npz(third_eit, third_pres, third_vol, p,"third_tit")
+
 
     def save_npz(self, arr:np.ndarray, pData:np.ndarray, vData:np.ndarray, path:Path, modality:str) -> None:
         """
@@ -80,13 +97,13 @@ class SplitTit:
         w : str
             patient id
         modality : str
-            dataset identifier ("TITeit" or "MLFeit")
+            dataset identifier ("half_tit" or "third_tit")
         """
         id = path.name
-        save_path = path.parent.parent.parent  / 'half_tit' / path.parent.name / id
+        save_path = path.parent.parent.parent  / modality / path.parent.name / id
         save_path.mkdir(parents = True, exist_ok = True)
         np.savez_compressed(
-            save_path / f"{modality}.npz",
+            save_path / "TITeit.npz",
             EITdata=arr,
             pressureData=pData,
             volumeData=vData,

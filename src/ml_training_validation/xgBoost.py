@@ -43,17 +43,13 @@ class XGBoost:
             eval_set=[(self.x_val, self.y_val)],
             verbose=False
         )
+        
         y_pred = self.xgb_model.predict(self.x_test)
-
-        joblib.dump(self.xgb_model, self.path / "XGB_model.joblib")
-        logger.info(f"XGBoost model saved to {self.path} / XGB_model.joblib")
-
         y_pred_real = y_pred * self.pstd + self.pmean
         y_true_real = self.y_test * self.pstd + self.pmean
 
         mae = mean_absolute_error(y_true_real, y_pred_real)
         rmse = np.sqrt(mean_squared_error(y_true_real, y_pred_real))
-
         logger.info(f"Model mean absolut error: {mae}")
         logger.info(f"Model mean squared error: {rmse}")
 
@@ -65,4 +61,7 @@ class XGBoost:
         fig.savefig(self.path / "XGB_prediction.png", bbox_inches='tight')
         plt.close(fig)
 
-        logger.info(f"XGBoost prediction saved to {self.path} / XGB_prediction.png")        
+        logger.info(f"XGBoost prediction saved to {self.path} / XGB_prediction.png")       
+
+        joblib.dump(self.xgb_model, self.path / "XGB_model.joblib")
+        logger.info(f"XGBoost model saved to {self.path} / XGB_model.joblib")
