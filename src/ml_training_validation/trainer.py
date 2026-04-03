@@ -18,12 +18,13 @@ logger = logging.getLogger("trainer")
 
 
 class Trainer:
-    def __init__(self, train_loader:DataLoader, val_loader:DataLoader, test_loader:DataLoader, input_size:DataLoader, path:Path) -> None:
+    def __init__(self, train_loader:DataLoader, val_loader:DataLoader, test_loader:DataLoader, input_size:DataLoader, pmean:float, pstd:float, path:Path) -> None:
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.test_loader = test_loader
         self.input_size = input_size
-
+        self.pmean = pmean
+        self.pstd = pstd
         self.path = path
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -177,7 +178,10 @@ class Trainer:
         y_pred = np.concatenate(all_preds)
         y_true = np.concatenate(all_targets)
         
-        mae = mean_absolute_error(y_true, y_pred)
-        rmse = root_mean_squared_error(y_true, y_pred)
+        y_pred_real = y_pred * self.pstd + self.pmean
+        y_true_real = y_true * self.pstd + self.pmean
+
+        mae = mean_absolute_error(y_true_real, y_pred_real)
+        rmse = root_mean_squared_error(y_true_real, y_pred_real)
 
         return avg_loss, mae, rmse
