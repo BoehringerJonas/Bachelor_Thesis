@@ -150,29 +150,29 @@ class PatientDataModule:
         #x_train_mlf = torch.from_numpy(x_train_mlf).float()
         x_train_tab = torch.from_numpy(x_train_tab).float()
         #x_val_tit = torch.from_numpy(x_val_tit).float()
-        #x_val_mlf = torch.from_numpy(x_val_mlf).float()
+        #x_val_mlf = torch.from_numpy(x_val_mlf).float() 
         x_val_tab = torch.from_numpy(x_val_tab).float()
         #x_test_tit = torch.from_numpy(x_test_tit).float()
         #x_test_mlf = torch.from_numpy(x_test_mlf).float()
         x_test_tab = torch.from_numpy(x_test_tab).float()
 
-        x_train = torch.cat([x_train_tit, x_train_mlf, x_train_tab], axis=1)
-        x_val = torch.cat([x_val_tit, x_val_mlf, x_val_tab], axis=1)
-        x_test = torch.cat([x_test_tit, x_test_mlf, x_test_tab], axis=1)
+        #x_train = torch.cat([x_train_tit, x_train_mlf, x_train_tab], axis=1)
+        #x_val = torch.cat([x_val_tit, x_val_mlf, x_val_tab], axis=1)
+        #x_test = torch.cat([x_test_tit, x_test_mlf, x_test_tab], axis=1)
 
-        assert torch.isfinite(x_train).all()
-        assert torch.isfinite(x_val).all()
-        assert torch.isfinite(x_test).all()
+        #assert torch.isfinite(x_train).all()
+        #assert torch.isfinite(x_val).all()
+        #assert torch.isfinite(x_test).all()
 
-        train_set = TensorDataset(x_train, y_train)
-        train = DataLoader(train_set, self.batch_size, shuffle=True)
-        val_set = TensorDataset(x_val, y_val)
-        val = DataLoader(val_set, self.batch_size)
-        test_set = TensorDataset(x_test, y_test)
-        test = DataLoader(test_set, self.batch_size)
+        train_set = TensorDataset(x_train_tit, x_train_mlf, x_train_tab, y_train)
+        train = DataLoader(train_set, self.batch_size, shuffle=True, num_workers=2, pin_memory=True)
+        val_set = TensorDataset(x_val_tit, x_val_mlf, x_val_tab, y_val)
+        val = DataLoader(val_set, self.batch_size, num_workers=2, pin_memory=True)
+        test_set = TensorDataset(x_test_tit, x_test_mlf, x_test_tab, y_test)
+        test = DataLoader(test_set, self.batch_size, num_workers=2, pin_memory=True)
 
         #joblib.dump(scaler_tit, self.path / "scaler_tit.joblib")
         #joblib.dump(scaler_mlf, self.path / "scaler_mlf.joblib")
         joblib.dump(scaler_tab, self.path / "scaler_tab.joblib")
 
-        return train, val, test, x_train.shape[1]
+        return train, val, test

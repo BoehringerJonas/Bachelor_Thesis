@@ -84,6 +84,11 @@ class FeatureZone:
         self.path = path
         self.split = split
         self.set = set
+                
+        if self.set == "full_tit":
+            self.folder = "clean"
+        else: 
+            self.folder = self.set
 
         if split == "train":
             self.MLFmin, self.MLFmax, self.MLFpmean, self.MLFpstd, self.MLFvmean, self.MLFvstd = self.get_global("MLF")
@@ -175,17 +180,29 @@ class FeatureZone:
         self.TITvstd  = torch.tensor(self.TITvstd, device=self.device)
 
         logger.info("def ResNet")
-        self.resnet = self.get_res().to(self.device) #Init encoder from ResNet
+        self.resnet = self.get_res().to(self.device)
+        self.resnet_reduce = nn.Linear(2048, 256).to(self.device)
 
-        logger.info("def LSTM")
-        self.lstm = torch.nn.LSTM(  #Init encoder from LSTM
-            input_size=2048,
-            hidden_size=512,
+
+        self.lstm_MLF = torch.nn.LSTM(
+            input_size=256,
+            hidden_size=16,                        #Testen 8-64
             num_layers=2,
             batch_first=True,
-            dropout=0.3
+            dropout=0.1
         ).to(self.device)
 
+        self.lstm_TIT = torch.nn.LSTM(
+            input_size=256,
+            hidden_size=16,                        #Testen 8-64
+            num_layers=2,
+            batch_first=True,
+            dropout=0.1
+        ).to(self.device)
+
+        # Reduce Layer bleibt gleich
+        self.lstm_reduce_MLF = nn.Linear(48, 8).to(self.device)
+        self.lstm_reduce_TIT = nn.Linear(48, 8).to(self.device)
 
     def run(self) -> None:
         """
@@ -207,9 +224,10 @@ class FeatureZone:
 
         torch.set_grad_enabled(False)
         self.resnet.eval()
-        self.lstm.eval()
+        self.lstm_MLF.eval()
+        self.lstm_TIT.eval()
 
-        pat_folders = sorted([f for f in (self.path / self.set / self.split).iterdir() if f.is_dir()])
+        pat_folders = sorted([f for f in (self.path / self.folder / self.split).iterdir() if f.is_dir()])
         for idx, p in enumerate(pat_folders, start=1):
             logger.info(f"Starting iteration for: {p.name} pat: {idx} / {len(pat_folders)}")
             logger.info("3D")
@@ -222,13 +240,13 @@ class FeatureZone:
 
             mlfData = np.load(mlfPath)
             mlfRes3D = self.extract_resnet_features3D(mlfData['EITdata'], "MLF")
-            mlfLSTM3D = self.extract_LSTM_features(mlfRes3D).cpu()
+            mlfLSTM3D = self.extract_LSTM_features(mlfRes3D, "MLF").cpu()
 
             logger.info("TIT")
             titPath = p / "TITeit.npz"
             titData = np.load(titPath)
             titRes3D = self.extract_resnet_features3D(titData['EITdata'], "TIT")
-            titLSTM3D = self.extract_LSTM_features(titRes3D).cpu()
+            titLSTM3D = self.extract_LSTM_features(titRes3D, "TIT").cpu()
 
             logger.info("save")
             save_path = Path(self.path) / 'feature' / self.set / "3D" / self.split
@@ -256,7 +274,7 @@ class FeatureZone:
                 (mlfData['volumeData']),
                 "MLF"
                 )
-            mlfLSTMVP = self.extract_LSTM_features(mlfResVP).cpu()
+            mlfLSTMVP = self.extract_LSTM_features(mlfResVP, "MLF").cpu()
 
             titResVP = self.extract_resnet_featuresVP(
                 (titData['EITdata']), 
@@ -264,7 +282,7 @@ class FeatureZone:
                 (titData['volumeData']),
                 "TIT"
                 )
-            titLSTMVP = self.extract_LSTM_features(titResVP).cpu()
+            titLSTMVP = self.extract_LSTM_features(titResVP, "TIT").cpu()
 
             logger.info("save")
             save_path = self.path / 'feature' / self.set / "VP" / self.split
@@ -314,7 +332,7 @@ class FeatureZone:
         asq_sum = bsq_sum = wsq_sum = hsq_sum = psq_sum = 0.0
         count = 0
 
-        pat_folders = sorted([f for f in (self.path / self.set / self.split).iterdir() if f.is_dir()])
+        pat_folders = sorted([f for f in (self.path / self.folder / self.split).iterdir() if f.is_dir()])
         assert len(pat_folders) != 0, "No patient folders found in the path!"
         for p in pat_folders:
             path = p / "table.npz"
@@ -396,7 +414,7 @@ class FeatureZone:
         amax = -np.inf
         amin = np.inf
 
-        pat_folders = sorted([f for f in (self.path / self.set / self.split).iterdir() if f.is_dir()])
+        pat_folders = sorted([f for f in (self.path / self.folder / self.split).iterdir() if f.is_dir()])
         for p in pat_folders:
             path = p / f"{modality}eit.npz"
             
@@ -523,6 +541,8 @@ class FeatureZone:
                 features = self.resnet(chunk)         # (B,2048,1,1)
                 features = features.flatten(1)        # (B,2048)
 
+                features = F.relu(self.resnet_reduce(features))#(B, 256)
+
                 spatial_features.append(features)
 
         return torch.cat(spatial_features, dim=0)
@@ -599,12 +619,14 @@ class FeatureZone:
                 features = self.resnet(vp)          # (B,2048,1,1)
                 features = features.flatten(1)      # (B,2048)
 
+                features = F.relu(self.resnet_reduce(features))
+
                 spatial_features.append(features)
 
         return torch.cat(spatial_features, dim=0)
 
 
-    def extract_LSTM_features(self, spatial_seq:torch.Tensor) -> torch.Tensor:
+    def extract_LSTM_features(self, spatial_seq:torch.Tensor, modality:str) -> torch.Tensor:
         """
         Extracts a fixed-length temporal feature representation from a sequence
         of spatial features using an LSTM.
@@ -624,8 +646,14 @@ class FeatureZone:
         """
         logger.info("LSTM features")
         spatial_seq = spatial_seq.to(self.device)
-        seq = spatial_seq.unsqueeze(0)              # (1, T, 2048)
-        out, (h_n, c_n) = self.lstm(seq)
+        seq = spatial_seq.unsqueeze(0)              # (1, T, 256)
+        if modality == "MLF":
+            out, (h_n, c_n) = self.lstm_MLF(seq)
+            lstm_features = torch.cat([h_n[-1], out.mean(dim=1), out.max(dim=1).values], dim=1)                         # 3*(1, 128) = (1, 384)
+            lstm_features = F.relu(self.lstm_reduce_MLF(lstm_features))  # (1,128)  testen mit end ziel 16 - 32
+        else:
+            out, (h_n, c_n) = self.lstm_TIT(seq)
+            lstm_features = torch.cat([h_n[-1], out.mean(dim=1), out.max(dim=1).values], dim=1)                         # 3*(1, 128) = (1, 384)
+            lstm_features = F.relu(self.lstm_reduce_TIT(lstm_features))  # (1,128)  testen mit end ziel 16 - 32
 
-        return torch.cat([h_n[-1], out.mean(dim=1), out.max(dim=1).values], dim=1)                         # 3*(1, 512) = (1, 1536)
-    
+        return lstm_features  

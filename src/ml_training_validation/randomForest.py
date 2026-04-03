@@ -3,7 +3,6 @@ import logging
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
