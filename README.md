@@ -15,8 +15,8 @@ pip install -r requirements.txt
 ```
 
 ## Usage
-python workflow.py --input_path D:\BA\workspace\data
+python workflow.py --input_path D:\BA\WORKSPACE\data
 
-python workflow.py --input_path D:\BA\workspace\data\feature --output_path D:\BA\workspace\data\output
+python workflow.py --input_path D:\BA\WORKSPACE\data\feature8 --output_path D:\BA\WORKSPACE\data\output
 
 ## Authors and acknowledgment

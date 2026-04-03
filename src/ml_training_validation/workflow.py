@@ -21,10 +21,8 @@ class Workflow:
     def __init__(self, input_path:str, output_path:str) -> None:
         self.input_path = Path(input_path)
         self.output_path = Path(output_path)
-        (self.output_path / "full_tit" / "3D").mkdir(parents = True, exist_ok = True)
-        (self.output_path / "full_tit" / "VP").mkdir(parents = True, exist_ok = True)        
-        (self.output_path / "half_tit" / "3D").mkdir(parents = True, exist_ok = True)
-        (self.output_path / "half_tit" / "VP").mkdir(parents = True, exist_ok = True)
+
+
 
         full_stats = np.load(self.input_path / "full_tit" / "stats" / "train_stats.npz")
         half_stats = np.load(self.input_path / "half_tit" / "stats" / "train_stats.npz")
@@ -35,10 +33,11 @@ class Workflow:
         self.hpstd = half_stats["pstd"]
 
     def run(self) -> None:
-        a = ["full_tit", "half_tit"]
+        a = ["full_tit", "half_tit", "third_tit"]
         b = ["3D", "VP"]
         for i in a:
-            for j in b:
+            for j in b:        
+                (self.output_path / i / j).mkdir(parents = True, exist_ok = True)
                 logger.info(f"\n##########\nStart Process for {i} {j}\n##########")
                 if i == "full_tit":
                     mean = self.fpmean
@@ -55,17 +54,17 @@ class Workflow:
                 Trainer(train_loader, val_loader, test_loader, mean, std, self.output_path / i / j).run()
 
                 logger.info(f"\n##########\nMaschine Learning\n##########")
-                x_train, y_train = self.get_numpy(train_loader)
-                x_val, y_val = self.get_numpy(val_loader)
-                x_test, y_test = self.get_numpy(test_loader)
+                #x_train, y_train = self.get_numpy(train_loader)
+                #x_val, y_val = self.get_numpy(val_loader)
+                #x_test, y_test = self.get_numpy(test_loader)
 
-                x_new_train = np.concatenate([x_train, x_val], axis=0)
-                y_new_train = np.concatenate([y_train, y_val], axis=0)
+                #x_new_train = np.concatenate([x_train, x_val], axis=0)
+                #y_new_train = np.concatenate([y_train, y_val], axis=0)
 
-                RandomForest(x_new_train, y_new_train, x_test, y_test, mean, std, self.output_path / i / j).run()
-                XGBoost(x_train, y_train, x_val, y_val, x_test, y_test, mean, std, self.output_path / i / j).run()
+                #RandomForest(x_new_train, y_new_train, x_test, y_test, mean, std, self.output_path / i / j).run()
+                #XGBoost(x_train, y_train, x_val, y_val, x_test, y_test, mean, std, self.output_path / i / j).run()
 
-                logger.info(f"\n##########\K Fold CV\n##########")
+                #logger.info(f"\n##########\K Fold CV\n##########")
                 #KfoldCV(x_new_train, y_new_train, x_test, y_test, mean, std, self.output_path / i / j).run()
 
         logger.info("\n##########\nFinished Process\n##########")

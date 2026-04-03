@@ -23,23 +23,23 @@ class Workflow:
 
     def run(self) -> None:
         logger.info("\n##########\nStart Clean Zone\n##########")
-        #CleanZone(self.input_path).run()
+        CleanZone(self.input_path).run()
         
         logger.info("\n##########\nStart Split Data\n##########")
-        #SplitData(self.input_path).run()
+        SplitData(self.input_path).run()
 
         logger.info("\n##########\nStart Split Titration\n##########")
         SplitTit(self.input_path / 'clean').run()
    
         logger.info("\n##########\nStart Feature Zone Full\n##########")
-        #FeatureZone(self.input_path, "train", "full_tit").run()
-        #FeatureZone(self.input_path, "val", "full_tit").run()
+        FeatureZone(self.input_path, "train", "full_tit").run()
+        FeatureZone(self.input_path, "val", "full_tit").run()
         FeatureZone(self.input_path, "test", "full_tit").run()
 
         logger.info("\n##########\nStart Feature Zone Half\n##########")
-        #FeatureZone(self.input_path, "train", "half_tit").run()
-        #FeatureZone(self.input_path, "val", "half_tit").run()
-        #FeatureZone(self.input_path, "test", "half_tit").run()
+        FeatureZone(self.input_path, "train", "half_tit").run()
+        FeatureZone(self.input_path, "val", "half_tit").run()
+        FeatureZone(self.input_path, "test", "half_tit").run()
 
         logger.info("\n##########\nStart Feature Zone Third\n##########")
         FeatureZone(self.input_path, "train", "third_tit").run()

@@ -186,7 +186,7 @@ class FeatureZone:
 
         self.lstm_MLF = torch.nn.LSTM(
             input_size=256,
-            hidden_size=128,                        #Testen 8-64
+            hidden_size=16,                        #Testen 8-64
             num_layers=2,
             batch_first=True,
             dropout=0.1
@@ -194,15 +194,15 @@ class FeatureZone:
 
         self.lstm_TIT = torch.nn.LSTM(
             input_size=256,
-            hidden_size=128,                        #Testen 8-64
+            hidden_size=16,                        #Testen 8-64
             num_layers=2,
             batch_first=True,
             dropout=0.1
         ).to(self.device)
 
         # Reduce Layer bleibt gleich
-        self.lstm_reduce_MLF = nn.Linear(384, 128).to(self.device)
-        self.lstm_reduce_TIT = nn.Linear(384, 128).to(self.device)
+        self.lstm_reduce_MLF = nn.Linear(48, 8).to(self.device)
+        self.lstm_reduce_TIT = nn.Linear(48, 8).to(self.device)
 
     def run(self) -> None:
         """

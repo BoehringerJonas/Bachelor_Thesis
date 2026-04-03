@@ -30,7 +30,7 @@ class Trainer:
 
         self.lr = 1e-3
         self.weight_decay = 1e-4
-        self.patience = 2
+        self.patience = 30
 
     def run(self):
         self.best_val_loss = float("inf")
