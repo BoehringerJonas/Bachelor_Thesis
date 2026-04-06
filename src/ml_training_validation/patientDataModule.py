@@ -2,19 +2,14 @@ import joblib
 import logging
 import numpy as np
 from pathlib import Path
+import time
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 from typing import Tuple
 from sklearn.preprocessing import StandardScaler
 
 
-
-logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-
-
-logger = logging.getLogger("PatientDataModule")
+logger = logging.getLogger("workflow")
 
 
 class PatientDataModule:
@@ -52,9 +47,9 @@ class PatientDataModule:
                 tit = torch.tensor(data["tit"], dtype=torch.float32).squeeze(0)
                 mlf = torch.tensor(data["mlf"], dtype=torch.float32).squeeze(0)
 
-                if not torch.isfinite(tit).all():
-                    logger.warning(f"Invalid TIT {data['patient_id']}")
-                    continue
+                #if not torch.isfinite(tit).all():
+                #    logger.warning(f"Invalid TIT {data['patient_id']}")
+                #    continue
 
                 if not torch.isfinite(mlf).all():
                     logger.warning(f"Invalid MLF {data['patient_id']}")

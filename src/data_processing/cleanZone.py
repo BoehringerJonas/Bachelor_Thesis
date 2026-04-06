@@ -5,11 +5,7 @@ import logging
 from pathlib import Path
 import scipy
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-
-logger = logging.getLogger("clean")
+logger = logging.getLogger("workflow")
 
 class CleanZone:
 

@@ -5,17 +5,16 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
+import time
+
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.model_selection import RandomizedSearchCV
 from scipy.stats import randint
 
-logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 
-logger = logging.getLogger("Random Forest")
+logger = logging.getLogger("workflow")
 
 
 class RandomForest:

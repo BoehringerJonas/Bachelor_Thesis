@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 from pathlib import Path
+import time
 from torch.utils.data import DataLoader
 from typing import Tuple
 
@@ -11,10 +12,15 @@ from trainer import Trainer
 from kfoldCV import KfoldCV
 
 
+log_file = f"/hpc/gpfs2/home/u/boehrijo/logs/workflow_{time.strftime('%Y%m%d_%H%M%S')}.log"
 logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, 
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()
+    ]
 )
-
 logger = logging.getLogger("Workflow")
 
 class Workflow:
@@ -54,18 +60,15 @@ class Workflow:
                 Trainer(train_loader, val_loader, test_loader, mean, std, self.output_path / i / j).run()
 
                 logger.info(f"\n##########\nMaschine Learning\n##########")
-                #x_train, y_train = self.get_numpy(train_loader)
-                #x_val, y_val = self.get_numpy(val_loader)
-                #x_test, y_test = self.get_numpy(test_loader)
+                x_train, y_train = self.get_numpy(train_loader)
+                x_val, y_val = self.get_numpy(val_loader)
+                x_test, y_test = self.get_numpy(test_loader)
 
-                #x_new_train = np.concatenate([x_train, x_val], axis=0)
-                #y_new_train = np.concatenate([y_train, y_val], axis=0)
+                x_new_train = np.concatenate([x_train, x_val], axis=0)
+                y_new_train = np.concatenate([y_train, y_val], axis=0)
 
-                #RandomForest(x_new_train, y_new_train, x_test, y_test, mean, std, self.output_path / i / j).run()
-                #XGBoost(x_train, y_train, x_val, y_val, x_test, y_test, mean, std, self.output_path / i / j).run()
-
-                #logger.info(f"\n##########\K Fold CV\n##########")
-                #KfoldCV(x_new_train, y_new_train, x_test, y_test, mean, std, self.output_path / i / j).run()
+                RandomForest(x_new_train, y_new_train, x_test, y_test, mean, std, self.output_path / i / j).run()
+                XGBoost(x_train, y_train, x_val, y_val, x_test, y_test, mean, std, self.output_path / i / j).run()
 
         logger.info("\n##########\nFinished Process\n##########")
 

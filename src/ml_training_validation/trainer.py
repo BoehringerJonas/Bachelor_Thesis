@@ -2,19 +2,16 @@ import numpy as np
 import logging
 import matplotlib.pyplot as plt
 from pathlib import Path
+import time
 import torch
 from torch.utils.data import DataLoader
 from sklearn.metrics import  mean_absolute_error, root_mean_squared_error
 
-
 from mlp import MLP
 from patientDataModule import PatientDataModule
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 
-logger = logging.getLogger("trainer")
+logger = logging.getLogger("workflow")
 
 
 class Trainer:
@@ -30,11 +27,9 @@ class Trainer:
 
         self.lr = 1e-3
         self.weight_decay = 1e-4
-        self.patience = 30
+        self.patience = 100
 
     def run(self):
-        self.best_val_loss = float("inf")
-
         logger.info("Init MLP")
         for mlf, tit, tab, targets in self.train_loader:
             mlf_size = mlf.shape[1]
@@ -110,7 +105,7 @@ class Trainer:
                 tab = tab.to(self.device, non_blocking=True)
                 targets = targets.to(self.device, non_blocking=True)
 
-                optimizer.zero_grad()
+                optimizer.zero_grad(set_to_none=True)
                 
                 outputs = model(mlf, tit, tab)                
                 loss = criterion(outputs, targets)
@@ -141,7 +136,7 @@ class Trainer:
                 logger.info("Early stopping triggered")
                 break
 
-        model.load_state_dict(torch.load(self.path / "MLP_model.pt"))
+        model.load_state_dict(torch.load(self.path / "MLP_model.pt", map_location=self.device))
         return train_losses, val_losses
     
     def validate_model(self, model, val_loader, criterion):

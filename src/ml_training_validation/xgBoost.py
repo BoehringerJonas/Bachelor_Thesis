@@ -4,15 +4,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+import time
 
 import xgboost as xgb
 
 
-logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-
-logger = logging.getLogger("XGBoost")
+logger = logging.getLogger("workflow")
 
 
 class XGBoost:

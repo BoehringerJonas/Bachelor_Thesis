@@ -3,14 +3,11 @@ import numpy as np
 import logging
 from pathlib import Path
 import shutil
+import time
 from typing import Tuple
 
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-
-logger = logging.getLogger("splitData")
+logger = logging.getLogger("workflow")
 
 
 class SplitData():

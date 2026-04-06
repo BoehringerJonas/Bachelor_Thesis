@@ -2,8 +2,9 @@ import logging
 import numpy as np
 from pathlib import Path
 from scipy.signal import find_peaks
+import time
 
-logger = logging.getLogger("SplitTIT")
+logger = logging.getLogger("workflow")
 
 class SplitTit:
     def __init__(self, path:Path):
