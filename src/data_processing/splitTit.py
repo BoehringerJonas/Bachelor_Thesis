@@ -10,7 +10,12 @@ class SplitTit:
     def __init__(self, path:Path):
         self.path = Path(path)
 
-    def run(self):
+    def run(self) -> None:
+        """
+        Takes the Titration data of each patient, detects all low peaks with a drop of over 1 cmH2O
+        to the next peak. The titration gets devidet into half and third of the length by excluding 
+        levels of the graph.
+        """
         pat_folders = sorted(
             p for p in self.path.rglob("*")
             if p.is_dir() and not any(c.is_dir() for c in p.iterdir()))
@@ -84,19 +89,22 @@ class SplitTit:
             self.save_npz(third_eit, third_pres, third_vol, p,"third_tit")
 
 
-    def save_npz(self, arr:np.ndarray, pData:np.ndarray, vData:np.ndarray, path:Path, modality:str) -> None:
+    def save_npz(self, eitData:np.ndarray, pData:np.ndarray, vData:np.ndarray, path:Path, 
+                modality:str) -> None:
         """
-        Saves the arrays in an npz file. For every patient it own folder and file
-        
-        Input:
-        arr : np.ndarray
+        Saves the data in an npz file. For every patient its own folder and file, titeled by 
+        half_tit or third_tit.
+
+        Parameters
+        ----------
+        eitData : np.ndarray
             picture data
         pData : np.ndarray
             pressure data
         vData : np.ndarray
             volume data
-        w : str
-            patient id
+        path : str
+            path to full titration folder
         modality : str
             dataset identifier ("half_tit" or "third_tit")
         """
@@ -105,7 +113,7 @@ class SplitTit:
         save_path.mkdir(parents = True, exist_ok = True)
         np.savez_compressed(
             save_path / "TITeit.npz",
-            EITdata=arr,
+            EITdata=eitData,
             pressureData=pData,
             volumeData=vData,
         )
@@ -113,9 +121,16 @@ class SplitTit:
         (save_path / "table.npz").write_bytes((self.path / path.parent.name / id / "table.npz").read_bytes())
 
 def entrypoint():
+    """
+    Starting point for the file.
+    Parameters
+    ----------
+    --path    : str
+        Takes the path to the parent directory of the input .npz files
+    """
     import argparse
 
-    parser = argparse.ArgumentParser(description="path for input")
+    parser = argparse.ArgumentParser(description="Path to parent directory of the input .npz files")
 
     parser.add_argument(
         "--path",

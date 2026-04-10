@@ -6,14 +6,26 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet50, ResNet50_Weights
-from typing import Tuple
+from typing import List, Tuple
 
 logger = logging.getLogger("workflow")
 
 
 class FeatureZone:
-
     def __init__(self, path: Path, split: str, set: str, device) -> None:
+        """
+        Defines the different encoders and linear layers and set's global values.
+
+        Parameters
+        ----------
+        path: Path
+            Path to input directory
+        split: str
+            name of data split (train, val, test)
+        set: str
+            name of tit split (full_tit, half_tit, third_tit)
+        device
+        """
         self.path = path
         self.split = split
         self.set = set
@@ -32,7 +44,7 @@ class FeatureZone:
 
         self.lstm_MLF = nn.LSTM(
             input_size=2048,
-            hidden_size=8,
+            hidden_size=64,
             num_layers=2,
             batch_first=True,
             dropout=0.1
@@ -40,31 +52,44 @@ class FeatureZone:
 
         self.lstm_TIT = nn.LSTM(
             input_size=2048,
-            hidden_size=8,
+            hidden_size=64,
             num_layers=2,
             batch_first=True,
             dropout=0.1
         ).to(self.device)
 
-        #self.lstm_reduce_MLF = nn.Linear(192, 16).to(self.device)
-        #self.lstm_reduce_TIT = nn.Linear(192, 16).to(self.device)
+        self.lstm_reduce_MLF = nn.Linear(192, 16).to(self.device)
+        self.lstm_reduce_TIT = nn.Linear(192, 16).to(self.device)
 
         self.resnet.eval()
         self.lstm_MLF.eval()
         self.lstm_TIT.eval()
 
+    def run_subset(self, pat_folders:Path) -> None:
+        """
+        Starts featuring prozess per patient.
 
-    def run(self, pat_folders):
-        self.run_subset(pat_folders)
-
-    def run_subset(self, pat_folders) -> None:
+        Parameters
+        ----------
+        pat_folders:Path
+            path to given input directorys
+        """
         self.load_stats()
         for p in pat_folders:
             self.process_patient(p)
 
-    def process_patient(self, p: Path):
+    def process_patient(self, p: Path) -> None:
+        """
+        Loads patient files and extract features with a Resnet50 and a LSTM encoder out 
+        of MLF and TIT data. 
+        Normalize and safe tabular data.
+        
+        Parameters
+        ----------
+        p: Path
+            Path to spezified patient
+        """
         logger.info(f"Starting iteration for: {p.name}")
-
         logger.info("3D")
 
         mlfPath = p / "MLFeit.npz"
@@ -161,28 +186,10 @@ class FeatureZone:
         )
         logger.info(f"Finish Patient: {p.name}")
 
-    def run_featurezone_cpu(self):
-        logger.info("Running FeatureZone on CPU")
-
-        for set_name in ["full_tit", "half_tit", "third_tit"]:
-            for split in ["train", "val", "test"]:
-
-                if set_name == "full_tit":
-                    pat_folders = sorted([
-                        f for f in (self.input_path / "clean" / split).iterdir()
-                        if f.is_dir()
-                    ])
-                else:
-                    pat_folders = sorted([
-                        f for f in (self.input_path / set_name / split).iterdir()
-                        if f.is_dir()
-                    ])
-
-                fz = FeatureZone(self.input_path, split, set_name, device="cpu")
-                fz.run_subset(pat_folders)
-
-                
     def calc_stats(self):
+        """
+        Coordinates the calculation of min, max, mean and std of the data. Safes everything.
+        """
         MLFmin, MLFmax, MLFpmean, MLFpstd, MLFvmean, MLFvstd = self.get_global("MLF")
         TITmin, TITmax, TITpmean, TITpstd, TITvmean, TITvstd = self.get_global("TIT")
 
@@ -218,6 +225,9 @@ class FeatureZone:
         )
 
     def load_stats(self):
+        """
+        Loads min, max, mean and std of the data calculated in calc_stats to global variable.
+        """
         spath = self.path / "feature" / self.set / "stats"
         stats = np.load(spath / "train_stats.npz")
 
@@ -254,6 +264,17 @@ class FeatureZone:
         np.float32, np.float32,
         np.float32, np.float32
     ]:
+        """
+        Calculates mean and std for the tabular data.
+
+        Returns
+        -------
+        np.float32 : mean age, np.float32 : std age,
+        np.float32 : mean bmi, np.float32 : std bmi,
+        np.float32 : mean weight, np.float32 : std weight,
+        np.float32 : mean hight, np.float32 : std hight,
+        np.float32 : mean PEEP, np.float32 : std PEEP
+        """
         asum = bsum = wsum = hsum = psum = 0.0
         asq_sum = bsq_sum = wsq_sum = hsq_sum = psq_sum = 0.0
         count = 0
@@ -327,11 +348,25 @@ class FeatureZone:
             np.float32(pmean), np.float32(pstd)
         )
 
-    def get_global(self, modality: str) -> Tuple[
+    def get_global(self, modality:str) -> Tuple[
         np.float32, np.float32,
         np.float32, np.float32,
         np.float32, np.float32
     ]:
+        """
+        Calculates min max for picture data and mean and std for pressure and volume data.
+
+        Parameters
+        ----------
+        modality: str
+            Sets the modality of TIT or MLF to load the correct file.
+
+        Returns
+        -------
+        np.float32 : min, np.float32 : max,
+        np.float32 : mean of pressure, np.float32 : std of pressure,
+        np.float32 : mean of volume, np.float32 std of volume
+        """
         logger.info("Start get_global for: " + modality)
 
         p_sum = v_sum = 0.0
@@ -387,10 +422,15 @@ class FeatureZone:
             np.float32(v_mean), np.float32(v_std)
         )
 
-
-
     def get_res(self) -> nn.Module:
-        resnet = resnet50(weights=ResNet50_Weights.DEFAULT)
+        """
+        Defines REsnet 50 Model with the spezified weights.
+
+        Returns
+        -------
+        nn.Module : REsnet 50 Model
+        """
+        resnet = resnet50(weights=ResNet50_Weights.DEFAULT) # Try different weights
         resnet = nn.Sequential(*list(resnet.children())[:-1])
 
         for p in resnet.parameters():
@@ -399,8 +439,25 @@ class FeatureZone:
         return resnet
 
 
-    def extract_resnet_features3D(self, frames, modality, batch_size=2048):
+    def extract_resnet_features3D(self, frames:np.ndarray, modality:str, batch_size=2048) -> torch.Tensor:
+        """
+        Builds 3D pictures out of the gray scale pictures and normalized. Set NaN to 0.0 and bring 
+        them to the correct form for resnet. Extract features with the resnet encoder and reduce 
+        to needet size.
 
+        Parameters
+        ----------
+        frames      : np.ndarray
+            EIT picture Data.
+        modality    : str
+            MLF or TIT to load correct stats.
+        batch_size  : int
+            Size of prozessable data at ones.
+
+        Returns
+        -------
+        torch.Tensor: Features from Resnet
+        """
         spatial_features = []
 
         with torch.no_grad(), torch.cuda.amp.autocast():
@@ -408,7 +465,6 @@ class FeatureZone:
                 chunk = torch.from_numpy(frames[i:i + batch_size]).float().to(self.device)
                 chunk = chunk.unsqueeze(1).repeat(1, 3, 1, 1)
 
-                
                 mask = ~torch.isnan(chunk)
 
                 if modality == "MLF":
@@ -442,15 +498,33 @@ class FeatureZone:
 
         return torch.cat(spatial_features, dim=0)
     
-    def extract_resnet_featuresVP(
-        self,
-        frames: np.ndarray,
-        pre: np.ndarray,
-        vol: np.ndarray,
-        modality: str,
+    def extract_resnet_featuresVP(self,
+        frames: np.ndarray, pre: np.ndarray,
+        vol: np.ndarray, modality: str, 
         batch_size=256
     ) -> torch.Tensor:
+        """
+        Builds 3D pictures out of the gray scale pictures, the pressure an volume data and 
+        normalized. Set NaN to 0.0 and bring them to the correct form for resnet. Extract 
+        features with the resnet encoder and reduce to needet size.
 
+        Parameters
+        ----------
+        frames      : np.ndarray
+            EIT picture Data.
+        pre         : np.ndarray
+            pressure data.
+        vol         : np.ndarray
+            volume data
+        modality    : str
+            MLF or TIT to load correct stats.
+        batch_size  : int
+            Size of prozessable data at ones.
+
+        Returns
+        -------
+        torch.Tensor: Features from Resnet
+        """
         assert frames.ndim == 3, f"Expected (T,H,W), got {frames.shape}"
         assert pre.ndim == 2, f"Expected (1, P), got {pre.shape}"
         assert vol.ndim == 2, f"Expected (1, V), got {vol.shape}"
@@ -521,20 +595,49 @@ class FeatureZone:
 
         return torch.cat(spatial_features, dim=0)
 
-    def extract_LSTM_features(self, spatial_seq, modality):
+    def extract_LSTM_features(self, spatial_seq:torch.Tensor, modality:str) -> torch.Tensor:
+        """
+        Extracts LSTM features with mean and max pooling and reduce to needet size.
 
+        Parameters
+        ----------
+        spatial_seq : torch.Tensor
+            input Resnet features
+        modality    : str
+            MLF or TIT for correct stats
+
+        Returns
+        -------
+        torch.Tensor : LSTM features
+
+        """
         seq = spatial_seq.to(self.device, dtype=torch.float32).unsqueeze(0)
         if modality == "MLF":
             out, (h_n, _) = self.lstm_MLF(seq)
             x = torch.cat([h_n[-1], out.mean(1), out.max(1).values], dim=1)
-            return x#F.relu(self.lstm_reduce_MLF(x))
+            return F.relu(self.lstm_reduce_MLF(x))
         else:
             out, (h_n, _) = self.lstm_TIT(seq)
             x = torch.cat([h_n[-1], out.mean(1), out.max(1).values], dim=1)
-            return x#F.relu(self.lstm_reduce_TIT(x))
+            return F.relu(self.lstm_reduce_TIT(x))
 
 
-def worker(gpu_id, gpu_tasks):
+def worker(gpu_id:int, gpu_tasks: List[List[Tuple[Path, str, str, List[Path]]]]) -> None:
+    """
+    Is started by the workflow and runs the featuring in chucks for the given GPU.
+    Uses new featurezone for each possible combination of split and set.
+
+    Parameters
+    ----------
+    gpu_id      :int 
+        Id of the usable GPU.
+    gpu_tasks   : List[List[Tuple[
+                        Path,   -> Base input path to the data
+                        str,    -> set name (full_tit, half_tit, third_tit)
+                        str,    -> split name (train, test, val)
+                        List[Path] -> pat_folders
+                        ]]]
+    """
     torch.cuda.set_device(gpu_id)
 
     tasks = gpu_tasks[gpu_id]

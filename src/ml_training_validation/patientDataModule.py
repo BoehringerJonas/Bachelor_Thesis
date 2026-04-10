@@ -2,7 +2,6 @@ import joblib
 import logging
 import numpy as np
 from pathlib import Path
-import time
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 from typing import Tuple
@@ -17,9 +16,18 @@ class PatientDataModule:
         self.path = path
         self.batch_size = batch_size
     
-    def run(self) -> Tuple[DataLoader, DataLoader, DataLoader, int]:
-        #scaler_tit = StandardScaler(with_mean=True, with_std=True)
-        #scaler_mlf = StandardScaler(with_mean=True, with_std=True)
+    def run(self) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
+        """
+        Checks for wrong values, pre processes tabular data an d does normalisation. 
+        Stackes the data to train, val, test and returns them as dataloader
+        
+        Returns
+        -------
+        DataLoader  : train dataset as dataloader
+        DataLoader  : val dataset as dataloader
+        DataLoader  : test dataset as dataloader
+        DataLoader  : train + val dataset as dataloader
+        """
         scaler_tab = StandardScaler(with_mean=True, with_std=True)
 
         x_train_tit = []
@@ -47,9 +55,9 @@ class PatientDataModule:
                 tit = torch.tensor(data["tit"], dtype=torch.float32).squeeze(0)
                 mlf = torch.tensor(data["mlf"], dtype=torch.float32).squeeze(0)
 
-                #if not torch.isfinite(tit).all():
-                #    logger.warning(f"Invalid TIT {data['patient_id']}")
-                #    continue
+                if not torch.isfinite(tit).all():
+                    logger.warning(f"Invalid TIT {data['patient_id']}")
+                    continue
 
                 if not torch.isfinite(mlf).all():
                     logger.warning(f"Invalid MLF {data['patient_id']}")
@@ -116,48 +124,21 @@ class PatientDataModule:
         y_val = torch.stack(y_val, dim=0)
         y_test = torch.stack(y_test, dim=0)
 
-        #x_train_tit = x_train_tit.detach().cpu().numpy()
-        #x_train_mlf = x_train_mlf.detach().cpu().numpy()
         x_train_tab = x_train_tab.detach().cpu().numpy()
-        #x_val_tit = x_val_tit.detach().cpu().numpy()
-        #x_val_mlf = x_val_mlf.detach().cpu().numpy()
         x_val_tab = x_val_tab.detach().cpu().numpy()
-        #x_test_tit = x_test_tit.detach().cpu().numpy()
-        #x_test_mlf = x_test_mlf.detach().cpu().numpy()
         x_test_tab = x_test_tab.detach().cpu().numpy()
 
-        #x_train_tit = scaler_tit.fit_transform(x_train_tit)
-        #x_train_mlf = scaler_mlf.fit_transform(x_train_mlf)
         x_train_tab = scaler_tab.fit_transform(x_train_tab)
         x_train_tab = np.concatenate([x_train_tab, x_train_tab_cat], axis=1)
-        #x_val_tit = scaler_tit.transform(x_val_tit)
-        #x_val_mlf = scaler_mlf.transform(x_val_mlf)
         x_val_tab = scaler_tab.transform(x_val_tab)
         x_val_tab   = np.concatenate([x_val_tab, x_val_tab_cat], axis=1)
 
-        #x_test_tit = scaler_tit.transform(x_test_tit)
-        #x_test_mlf = scaler_mlf.transform(x_test_mlf)
         x_test_tab = scaler_tab.transform(x_test_tab)
         x_test_tab  = np.concatenate([x_test_tab, x_test_tab_cat], axis=1)
 
-
-        #x_train_tit = torch.from_numpy(x_train_tit).float()
-        #x_train_mlf = torch.from_numpy(x_train_mlf).float()
         x_train_tab = torch.from_numpy(x_train_tab).float()
-        #x_val_tit = torch.from_numpy(x_val_tit).float()
-        #x_val_mlf = torch.from_numpy(x_val_mlf).float() 
         x_val_tab = torch.from_numpy(x_val_tab).float()
-        #x_test_tit = torch.from_numpy(x_test_tit).float()
-        #x_test_mlf = torch.from_numpy(x_test_mlf).float()
         x_test_tab = torch.from_numpy(x_test_tab).float()
-
-        #x_train = torch.cat([x_train_tit, x_train_mlf, x_train_tab], axis=1)
-        #x_val = torch.cat([x_val_tit, x_val_mlf, x_val_tab], axis=1)
-        #x_test = torch.cat([x_test_tit, x_test_mlf, x_test_tab], axis=1)
-
-        #assert torch.isfinite(x_train).all()
-        #assert torch.isfinite(x_val).all()
-        #assert torch.isfinite(x_test).all()
 
         train_set = TensorDataset(x_train_tit, x_train_mlf, x_train_tab, y_train)
         train = DataLoader(train_set, self.batch_size, shuffle=True, num_workers=2, pin_memory=True)
@@ -166,8 +147,14 @@ class PatientDataModule:
         test_set = TensorDataset(x_test_tit, x_test_mlf, x_test_tab, y_test)
         test = DataLoader(test_set, self.batch_size, num_workers=2, pin_memory=True)
 
-        #joblib.dump(scaler_tit, self.path / "scaler_tit.joblib")
-        #joblib.dump(scaler_mlf, self.path / "scaler_mlf.joblib")
+        x_full_tit = torch.cat([x_train_tit, x_val_tit], dim=0)
+        x_full_mlf = torch.cat([x_train_mlf, x_val_mlf], dim=0)
+        x_full_tab = torch.cat([x_train_tab, x_val_tab], dim=0)
+        y_full     = torch.cat([y_train, y_val], dim=0)
+
+        full_set = TensorDataset(x_full_tit, x_full_mlf, x_full_tab, y_full)
+        full = DataLoader(full_set, self.batch_size, num_workers=2, pin_memory=True)
+
         joblib.dump(scaler_tab, self.path / "scaler_tab.joblib")
 
-        return train, val, test
+        return train, val, test, full

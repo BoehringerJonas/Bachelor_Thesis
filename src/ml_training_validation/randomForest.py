@@ -1,16 +1,16 @@
 import joblib
+import json
 import logging
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
-import time
 
 
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-from sklearn.model_selection import RandomizedSearchCV
+from sklearn.metrics import mean_absolute_error, mean_squared_error, median_absolute_error, r2_score
+from sklearn.model_selection import GridSearchCV
 from scipy.stats import randint
 
 
@@ -18,7 +18,8 @@ logger = logging.getLogger("workflow")
 
 
 class RandomForest:
-    def __init__(self, x_train: np.array, y_train: np.array, x_test: np.array, y_test: np.array, pmean:float, pstd:float, path: Path) -> None:
+    def __init__(self, x_train: np.array, y_train: np.array, x_test: np.array,
+                y_test: np.array, pmean:float, pstd:float, path: Path) -> None:
         self.x_train = x_train
         self.x_test = x_test
         self.y_train = y_train
@@ -29,32 +30,40 @@ class RandomForest:
 
         self.rf = RandomForestRegressor(
             n_estimators=500,
-            oob_score=False,
+            oob_score=True,
             random_state=42,
             n_jobs=1
         )
 
-    def run(self, tune_hyperparameters: bool = False) -> None:
+    def run(self, tune_hyperparameters: bool = True) -> None:
+        """
+        Tests for best parameters, train Random Forest on the best parameters and 
+        renormalized the output PEEP. Calculates metrics and safe to json. Plots 
+        prediction vs true.
+        Parameters
+        ----------
+        tune_hyperparameters: bool = True
+            optional for no tuned parameters
+        """
         logger.info("Start Random Forest")
 
         if tune_hyperparameters:
             param_dist = {
-                "n_estimators": randint(100, 1000),
-                "max_depth": [None, 5, 10, 20],
-                "min_samples_split": randint(2, 10),
-                "min_samples_leaf": randint(1, 5)
+                "n_estimators": [100, 200, 500, 1000, 2000],
+                "max_depth": [None, 5, 10, 20, 40, 80, 100],
             }
-            search = RandomizedSearchCV(
+            search = GridSearchCV(
                 self.rf,
-                param_distributions=param_dist,
-                n_iter=20,
-                scoring='neg_mean_squared_error',
-                cv=3,
-                random_state=42,
-                n_jobs=-1
+                param_grid=param_dist,
+                cv=6,
+                n_jobs=-1,
+                scoring='neg_mean_absolute_error',
+                return_train_score=True
             )
             search.fit(self.x_train, self.y_train)
             self.rf = search.best_estimator_
+            logger.info(f"Best Params: {search.best_params_}")
+            #logger.info(f"Best MAE: {-search.best_score_}")
             logger.info(f"Best hyperparameters: {search.best_params_}")
         else:
             self.rf.fit(self.x_train, self.y_train)
@@ -64,24 +73,37 @@ class RandomForest:
 
         y_pred = self.rf.predict(self.x_test)
 
-        if getattr(self.rf, "oob_score_", None) is not None:
-            logger.info(f"OOB Score: {self.rf.oob_score_}")
-
         y_pred_real = y_pred * self.pstd + self.pmean
         y_true_real = self.y_test * self.pstd + self.pmean
 
         mae = mean_absolute_error(y_true_real, y_pred_real)
-        rmse = np.sqrt(mean_squared_error(y_true_real, y_pred_real))
+        mse = mean_squared_error(y_true_real, y_pred_real)
+        rmse = np.sqrt(mse)
+        medae = median_absolute_error(y_true_real, y_pred_real)
+        r2 = r2_score(y_true_real, y_pred_real)
 
-        logger.info(f"Model mean absolut error: {mae}")
-        logger.info(f"Model mean squared error: {rmse}")
+        model_key = f"RF_{self.path.parent.name}_{self.path.name}"
+        result = {
+            self.path.parent.name: {
+                model_key: {
+                    "mae": float(mae),
+                    "mse": float(mse),
+                    "rmse": float(rmse),
+                    "medae": float(medae),
+                    "r2": float(r2)
+                }
+            }
+        }
+
+        with open(self.path / f"result_{model_key}.json", "w") as f:
+            json.dump(result, f, indent=4)
 
         fig, ax = plt.subplots(figsize=(6, 6))
 
         ax.scatter(y_true_real, y_pred_real)
         ax.set_xlabel("True Values")
         ax.set_ylabel("Predictions")
-        ax.set_title("Prediction vs True")
+        ax.set_title("RF Prediction vs True")
 
         fig.savefig(self.path / "RandomForest_prediction.png", bbox_inches='tight')
         plt.close(fig)

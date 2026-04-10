@@ -25,13 +25,14 @@ logger = logging.getLogger("workflow")
 
 
 class Workflow:
-    def __init__(
-        self,
-        input_path : Union[str, Path],
-    ) -> None:
+    def __init__(self, input_path : Union[str, Path]) -> None:
         self.input_path = Path(input_path)
 
     def run(self) -> None:
+        """
+        Starts all needed files for the data prozessing and featuring. Does prework for 
+        multyprozess of the feature Zone.
+        """
         logger.info("\n##########\nStart Clean Zone\n##########")
         #CleanZone(self.input_path).run()
         
@@ -51,7 +52,9 @@ class Workflow:
         logger.info("\n##########\nFinished Process\n##########")
 
     def run_featurezone_parallel(self):
-
+        """
+        Defines all needed prozesses for the featuring and starts the prozesses with a spezified GPU.
+        """
         num_gpus = torch.cuda.device_count()
         if num_gpus == 0:
             logger.warning("No GPU found → fallback to single process on CPU")
@@ -60,7 +63,6 @@ class Workflow:
 
         tasks = []
 
-        # 👉 alle Jobs definieren
         for set_name in ["full_tit", "half_tit", "third_tit"]:
             for split in ["train", "val", "test"]:
                 logger.info(f"starting: {split} for: {set_name}")
@@ -80,7 +82,6 @@ class Workflow:
                 for gpu_id in range(num_gpus):
                     tasks.append((self.input_path, split, set_name, chunks[gpu_id]))
 
-        # 👉 Tasks auf GPUs verteilen
         gpu_tasks = [[] for _ in range(num_gpus)]
         for i, task in enumerate(tasks):
             if len(chunks[gpu_id]) > 0:
@@ -89,13 +90,21 @@ class Workflow:
         mp.spawn(worker, args=(gpu_tasks,), nprocs=num_gpus)
 
 def entrypoint():
+    """
+    Starting point of the whole data pipeline.
+
+    Parameters
+    ----------
+    --input_path:   str
+        Path to input parent directory of the input .mat files
+    """
     import argparse
 
-    parser = argparse.ArgumentParser(description="Arguments for in- and output")
+    parser = argparse.ArgumentParser(description="Path to input parent directory of the input .mat files")
 
     parser.add_argument(
         "--input_path",
-        help="Path to data directory",
+        help="Path to input parent directory of the input .mat files",
         required=True,
     )
 

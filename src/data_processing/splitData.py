@@ -15,12 +15,16 @@ class SplitData():
         self.path = Path(path)
 
 
-    def run(self):
+    def run(self) -> None:
+        """
+        Collects all patients, devides them by low, mid, high PEEP and and splits the data 
+        into train, test and val. Test and val are getting 4 patients where 1 patient 
+        with low and 1 with high PEEP is in val and test. Rest of the patients is going into 
+        train. Moves patients into there specified folders.
+        """
         table = pd.read_csv(self.path / "raw" / "MLF"/ "peep_tabular_data.csv")
         table = table[~table["Pat-ID"].str.startswith("AD")]
         pat = table[["Pat-ID", "PEEP"]].to_numpy()
-
-        #data, pat = self.get_data()
         
         low = []
         mid = []
@@ -61,6 +65,23 @@ class SplitData():
 
 
     def split(self, pats:np.array, n_val:int, n_test:int) -> Tuple[np.array, np.array, np.array]:
+        """
+        Parameters
+        ----------
+        pats    : np.array
+            patients with low, mid or high PEEP
+        n_val   : int
+            cont how much of low, mid or high is going into val set
+        n_test  : int
+            cont how much of low, mid or high is going into test set
+
+        Returns
+        -------
+        np.array : array with patients for train set
+        np.array : array with patients for val set
+        np.array : array with patients for test set
+
+        """
         pats = np.array(pats)
         np.random.seed(42)
         np.random.shuffle(pats)

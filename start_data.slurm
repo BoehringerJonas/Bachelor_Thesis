@@ -13,7 +13,7 @@
 # -----------------------------
 # Aktiviere virtuelle Umgebung
 # -----------------------------
-source ~/BA/venv/bin/activate          # Pfad zu deiner venv
+source ~/ba/venv/bin/activate          # Pfad zu deiner venv
 
 # -----------------------------
 # Limitiere OpenMP Threads
@@ -23,4 +23,4 @@ export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-1}
 # -----------------------------
 # Starte den Workflow
 # -----------------------------
-srun python ~/BA/src/data_processing/workflow.py --input_path ~/data7
+srun python ~/ba/src/data_processing/workflow.py --input_path ~/data2
