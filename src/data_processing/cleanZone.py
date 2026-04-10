@@ -5,33 +5,18 @@ import logging
 from pathlib import Path
 import scipy
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-
-logger = logging.getLogger("clean")
+logger = logging.getLogger("workflow")
 
 class CleanZone:
-
-    def __init__(self, 
-        input_path : Path, 
-        ) -> None:
-        """
-        Init global mean and std for MLF and TIT bevor running the clean stage.
-        """
+    def __init__(self, input_path : Path) -> None:
         self.input_path = input_path
 
 
     def run(self) -> None:
         """
-        Read .mat files and preprozess them and sve them to npz files.
-
-        raw -> clean
-
-        |- clean
-            |- MLFeit.npz
-            |- table.npz
-            |- TITeit.npz
+        raw data -> clean data
+        Reads .mat files per patient with picture data , filtered pressure data, volume data for TIT, MLF and 
+        tabular data. Transpose pictures to (T,H,W), and safes per patient TIT, MLF, Tabular.
         """
         csv_path = self.input_path/ 'raw' / 'MLF' / 'peep_tabular_data.csv'
         table = pd.read_csv(csv_path)
@@ -49,7 +34,6 @@ class CleanZone:
             MLFmat = scipy.io.loadmat(path)
             key = list(MLFmat.keys())[3]
             MLF = np.transpose(MLFmat[key], (2,0,1)).astype(np.float32)
-            #MLF = np.nan_to_num(MLF, nan=0.0)
 
             pMLFmat = scipy.io.loadmat(self.input_path / 'raw' / 'MLF' / id / f"{id}_pressure_filtered_sb.mat")
             pkey = list(pMLFmat.keys())[3]
@@ -66,7 +50,6 @@ class CleanZone:
             TITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / id / f"{id}_images_part_tit.mat")
             key = list(TITmat.keys())[3]
             TIT = np.transpose(TITmat[key], (2,0,1)).astype(np.float32)
-            #TIT = np.nan_to_num(TIT, nan=0.0)
             
             pTITmat = scipy.io.loadmat(self.input_path / 'raw' / 'Titration' / id / f"{id}_pressure_filtered_tit.mat")
             pkey = list(pTITmat.keys())[3]
@@ -104,27 +87,29 @@ class CleanZone:
                 targetPEEP=row["PEEP"]
             )
 
-    def save_npz(self, arr:np.ndarray, pData:np.ndarray, vData:np.ndarray, id:str, modality:str) -> None:
+    def save_npz(self, eitData:np.ndarray, pData:np.ndarray, vData:np.ndarray, id:str, 
+                modality:str) -> None:
         """
-        Saves the arrays in an npz file. For every patient it own folder and file
-        
-        Input:
-        arr : np.ndarray
+        Saves the data in an npz file. For every patient it own folder and file.
+            
+        Parameters
+        ----------
+        eitData : np.ndarray
             picture data
-        pData : np.ndarray
+        pData   : np.ndarray
             pressure data
-        vData : np.ndarray
+        vData   : np.ndarray
             volume data
-        w : str
+        id      : str
             patient id
-        modality : str
+        modality: str
             dataset identifier ("TITeit" or "MLFeit")
         """
         save_path = self.input_path / 'clean' / id
         save_path.mkdir(parents = True, exist_ok = True)
         np.savez_compressed(
             save_path / f"{modality}.npz",
-            EITdata=arr,
+            EITdata=eitData,
             pressureData=pData,
             volumeData=vData,
         )
