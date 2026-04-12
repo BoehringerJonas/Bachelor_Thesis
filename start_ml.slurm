@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=32                          # CPU Kerne pro Task
 #SBATCH --gres=gpu:1                                # Anzahl GPUs (pro Node)
 #SBATCH --mem=128G                                  # Arbeitsspeicher
-#SBATCH --time=01:20:00                             # Max Laufzeit 6h (hh:mm:ss)
+#SBATCH --time=02:00:00                             # Max Laufzeit 6h (hh:mm:ss)
 #SBATCH --mail-type=END,FAIL                        # Mail bei Ende oder Fehler
 #SBATCH --mail-user=jonas02boehringer@gmail.com     # Empfänger
 

@@ -373,5 +373,15 @@ class Trainer:
         with open(self.path / f"{mode}result_{model_key}.json", "w") as f:
             json.dump(result, f, indent=4)
 
+        fig, ax = plt.subplots(figsize=(6, 6))
+        ax.scatter(y_true_real, y_pred_real)
+        ax.set_xlabel("True Values")
+        ax.set_ylabel("Predictions")
+        ax.set_title(f"{mode}MLP Prediction vs True")
+        fig.savefig(self.path / f"{mode}MLP_prediction.png", bbox_inches='tight')
+        plt.close(fig)
+
+        logger.info(f"{mode} MLP prediction saved to {self.path} / {mode}MLP_prediction.png")       
+
         return avg_loss, mae, mse
 

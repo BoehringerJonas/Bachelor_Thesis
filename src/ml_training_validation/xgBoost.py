@@ -28,13 +28,14 @@ class XGBoost:
         self.pstd = pstd
         self.path = path
         self.model = xgb.XGBRegressor(
-            tree_method="gpu_hist",
-            predictor="gpu_predictor",
+            tree_method="hist",
+            device="cuda",
             objective="reg:squarederror",
             eval_metric="rmse",
-            random_state=42
-            #reg_lambda=1.0
+            random_state=42,
+            reg_lambda=1.0
         )
+
     def run(self) -> None:
         """
         Train and test XGBoost model. Start plot and safe prozess
@@ -43,9 +44,9 @@ class XGBoost:
         param_dist = {
             "n_estimators": [300, 500, 1000, 2000],
             "max_depth": [3, 5, 8],
-            "learning_rate": [0.01, 0.05, 0.1],
+            "learning_rate": [0.05, 0.1],
             "subsample": [0.6, 0.8, 1.0],
-            "colsample_bytree": [0.6, 0.8, 1.0],
+            "colsample_bytree": [0.6, 1.0],
             "min_child_weight": [1, 5, 10],
             #"gamma": [0, 0.5, 1],
             #"reg_alpha": [0, 0.01, 0.1, 1],
@@ -55,7 +56,7 @@ class XGBoost:
         search = RandomizedSearchCV(
             self.model,
             param_distributions=param_dist,
-            n_iter=35,
+            n_iter=30,
             cv=6,
             scoring='neg_mean_absolute_error',
             n_jobs=-1,
@@ -68,29 +69,41 @@ class XGBoost:
         self.model = search.best_estimator_
         logger.info(f"Best hyperparameters: {search.best_params_}")
 
-        model = xgb.XGBRegressor(**search.best_params_)
-        model.fit(
-            self.x_train,
-            self.y_train,
-            eval_set=[(self.x_train, self.y_train), (self.x_val, self.y_val)],
-            eval_metric="rmse",
-            callbacks=[
-                xgb.callback.EarlyStopping(rounds=30, save_best=True)
-            ],
-            verbose=True
-        )
-        self.plot_early_stop(self.model, "")
-        self.save_val(self.model, "")
+        valid_params = xgb.XGBRegressor().get_params().keys()
 
-        logger.info("XGBoost CV")
-        modelCV = xgb.XGBRegressor(
-            tree_method="gpu_hist",
-            predictor="gpu_predictor",
+        best_params = {
+            k: v for k, v in search.best_params_.items()
+            if k in valid_params
+        }
+
+        model = xgb.XGBRegressor(
+            **best_params,
+            tree_method="hist",
+            callbacks=[xgb.callback.EarlyStopping(rounds=30)],
+            device="cuda",
             objective="reg:squarederror",
             eval_metric="rmse",
             random_state=42
         )
+        model.fit(
+            self.x_train,
+            self.y_train,
+            eval_set=[(self.x_train, self.y_train), (self.x_val, self.y_val)],
+            verbose=True
+        )
+        self.plot_early_stop(model, "")
+        self.save_val(model, "")
 
+        logger.info("XGBoost CV")
+        modelCV = xgb.XGBRegressor(
+            **best_params,
+            tree_method="hist",
+            device="cuda",
+            objective="reg:squarederror",
+            eval_metric="rmse",
+            random_state=42
+        )
+        
         results = cross_validate(
             modelCV, 
             self.x_full, self.y_full,
@@ -123,8 +136,6 @@ class XGBoost:
 
         results = model.evals_result()
 
-        train_loss = results["validation_0"]["rmse"]
-        val_loss   = results["validation_1"]["rmse"]
 
         plt.figure(figsize=(8, 5))
         plt.grid(True, linestyle="--", alpha=0.6)

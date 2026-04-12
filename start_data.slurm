@@ -21,7 +21,7 @@ mkdir -p $RUN_DIR
 echo "Run dir: $RUN_DIR"
 
 # Code snapshot
-cp -r ~/ba $RUN_DIR/
+cp -r ~/ba/src/data_processing $RUN_DIR/
 
 # Optional: Version markieren
 echo "VERSION: $(date)" > $RUN_DIR/version.txt
@@ -29,7 +29,7 @@ echo "VERSION: $(date)" > $RUN_DIR/version.txt
 # -----------------------------
 # 2. Wechsel in Snapshot
 # -----------------------------
-cd $RUN_DIR/ba
+cd $RUN_DIR/ba/src/data_processing
 
 # -----------------------------
 # 3. Python Cache entfernen (wichtig: im Snapshot!)
@@ -40,7 +40,7 @@ find . -name "__pycache__" -delete
 # -----------------------------
 # 4. Umgebung aktivieren
 # -----------------------------
-source venv/bin/activate
+source ~venv/bin/activate
 
 # -----------------------------
 # 5. Threading kontrollieren
@@ -51,10 +51,10 @@ export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-1}
 # 7. Debug (optional aber empfohlen)
 # -----------------------------
 echo "Running from: $(pwd)"
-python -c "import inspect; import src.data_processing.featureZone as f; print('FeatureZone file:', inspect.getfile(f.FeatureZone))"
+python -c "import inspect; import featureZone as f; print('FeatureZone file:', inspect.getfile(f.FeatureZone))"
 
 # -----------------------------
 # 8. Start
 # -----------------------------
 
-srun python src/data_processing/workflow.py --input_path ~/data10
+srun python workflow.py --input_path ~/data10
