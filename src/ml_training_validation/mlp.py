@@ -18,25 +18,41 @@ class MLP(nn.Module):
         super().__init__()
         self.mlf_net = nn.Sequential(
             nn.Linear(mlf_size, 64),
-            nn.ReLU(),
+            nn.LayerNorm(64),
+            nn.SiLU(),#nn.ReLU(),
             nn.Dropout(0.1)
         )
 
         self.tit_net = nn.Sequential(
             nn.Linear(tit_size, 64),
-            nn.ReLU(),
+            nn.LayerNorm(64),
+            nn.SiLU(),#nn.ReLU(),
             nn.Dropout(0.1)
         )
 
         self.tab_net = nn.Sequential(
             nn.Linear(tab_size, 16),
-            nn.ReLU()
+            nn.GELU(),#nn.ReLU(),
+            nn.LayerNorm(16)
+        )
+
+        self.gate = nn.Sequential(
+            nn.Linear(64 + 64 + 16, 3),
+            nn.Softmax(dim=1)
+        )
+
+        self.fusion = nn.Sequential( 
+            nn.Linear(64 + 64 + 16, 128),
+            nn.GELU(),#nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(128, 64),
+            nn.GELU()#nn.ReLU()
         )
         
         self.head = nn.Sequential(
-            nn.Linear(64 + 64 + 16, 64),
-            nn.ReLU(),
-            nn.Linear(64, 1)
+            nn.Linear(64, 32),
+            nn.GELU(),#nn.ReLU(),
+            nn.Linear(32, 1)
         )
     
     def forward(self, mlf:torch.Tensor, tit:torch.Tensor, tab:torch.Tensor) -> torch.Tensor:
@@ -61,5 +77,19 @@ class MLP(nn.Module):
         tit = self.tit_net(tit)
         tab = self.tab_net(tab)
 
-        x = torch.cat([mlf, tit, tab], dim=1)
+        a = torch.cat([mlf, tit, tab], dim=1)
+
+        g = self.gate(a)  # (B, 3)
+
+        g_mlf = g[:, 0:1]
+        g_tit = g[:, 1:2]
+        g_tab = g[:, 2:3]
+
+        fused = torch.cat([
+            g_mlf * mlf,
+            g_tit * tit,
+            g_tab * tab
+        ], dim=1)
+
+        x = self.fusion(fused)
         return self.head(x)

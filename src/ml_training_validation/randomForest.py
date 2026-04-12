@@ -10,7 +10,7 @@ from pathlib import Path
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, median_absolute_error, r2_score
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import RandomizedSearchCV
 from scipy.stats import randint
 
 
@@ -35,7 +35,7 @@ class RandomForest:
             n_jobs=1
         )
 
-    def run(self, tune_hyperparameters: bool = True) -> None:
+    def run(self) -> None:
         """
         Tests for best parameters, train Random Forest on the best parameters and 
         renormalized the output PEEP. Calculates metrics and safe to json. Plots 
@@ -46,27 +46,27 @@ class RandomForest:
             optional for no tuned parameters
         """
         logger.info("Start Random Forest")
+        param_dist = {
+            "n_estimators": [300, 500, 1000, 2000],
+            "max_depth": [5, 10, 20, 50, None],
+            "max_features": ["sqrt", "log2", 0.5, 0.8],
+            "min_samples_split": [2, 5, 10, 20],
+            "min_samples_leaf": [1, 2, 5, 10],
+            "bootstrap": [True]
+        }
 
-        if tune_hyperparameters:
-            param_dist = {
-                "n_estimators": [100, 200, 500, 1000, 2000],
-                "max_depth": [None, 5, 10, 20, 40, 80, 100],
-            }
-            search = GridSearchCV(
-                self.rf,
-                param_grid=param_dist,
-                cv=6,
-                n_jobs=-1,
-                scoring='neg_mean_absolute_error',
-                return_train_score=True
-            )
-            search.fit(self.x_train, self.y_train)
-            self.rf = search.best_estimator_
-            logger.info(f"Best Params: {search.best_params_}")
-            #logger.info(f"Best MAE: {-search.best_score_}")
-            logger.info(f"Best hyperparameters: {search.best_params_}")
-        else:
-            self.rf.fit(self.x_train, self.y_train)
+        search = RandomizedSearchCV(
+            self.rf,
+            param_distributions=param_dist,
+            n_iter=50,
+            cv=6,
+            scoring='neg_mean_absolute_error',
+            n_jobs=-1,
+            random_state=42
+        )
+        search.fit(self.x_train, self.y_train)
+        self.rf = search.best_estimator_
+        logger.info(f"Best hyperparameters: {search.best_params_}")
 
         joblib.dump(self.rf, self.path / "rf_model.joblib")
         logger.info(f"Random Forest model saved to {self.path} / rf_model.joblib")

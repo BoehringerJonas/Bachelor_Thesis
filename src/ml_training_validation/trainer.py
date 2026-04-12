@@ -36,7 +36,7 @@ class Trainer:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.lr = 1e-3
+        self.lr = 5e-4
         self.weight_decay = 1e-4
         self.patience = 30
 
@@ -89,7 +89,7 @@ class Trainer:
 
 
         # Evaluate the model
-        test_loss, test_mae, test_mse = self.evaluate_model(model, self.test_loader, criterion)
+        test_loss, test_mae, test_mse = self.evaluate_model(model, self.test_loader, criterion, "")
 
         plt.figure()
         plt.plot(train_losses, label="Train")
@@ -132,8 +132,8 @@ class Trainer:
 
             train_subsampler = Subset(dataset, train_ids)
             val_subsampler = Subset(dataset, val_ids)
-            train_loader = DataLoader(train_subsampler, batch_size=16, shuffle=True)
-            val_loader = DataLoader(val_subsampler, batch_size=16, shuffle=False)
+            train_loader = DataLoader(train_subsampler, batch_size=64, shuffle=True) # batchsize 32 test
+            val_loader = DataLoader(val_subsampler, batch_size=64, shuffle=False)
 
             optimizer = torch.optim.AdamW(
             model.parameters(),
@@ -176,7 +176,7 @@ class Trainer:
                                     "CV"
                                     )
         
-        test_loss, test_mae, test_mse = self.evaluate_model(model, self.test_loader, criterion)
+        test_loss, test_mae, test_mse = self.evaluate_model(model, self.test_loader, criterion, "CV")
 
         plt.figure()
         plt.plot(train_losses, label="Train")
@@ -265,7 +265,6 @@ class Trainer:
                 logger.info("Early stopping triggered")
                 break
 
-        #model.load_state_dict(torch.load(self.path / f"{mode}MLP_model.pt", map_location=self.device))
         return train_losses * self.pstd + self.pmean, val_losses * self.pstd + self.pmean
     
     def validate_model(self, model:Module, val_loader:DataLoader, criterion:Module) -> float:
@@ -303,7 +302,7 @@ class Trainer:
 
 
     def evaluate_model(self, model:Module, test_loader:DataLoader, 
-                       criterion:Module) -> Tuple[float, float, float]:
+                       criterion:Module, mode:str) -> Tuple[float, float, float]:
         """
         Tests the performance of the end model.
 
@@ -314,6 +313,8 @@ class Trainer:
         test_loader : DataLoader
         criterion   : Module
             MSE Loss
+        mode        : str
+            CV or not CV
 
         Returns
         -------
@@ -369,7 +370,8 @@ class Trainer:
                 }
             }
         }
-        with open(self.path / f"result_{model_key}.json", "w") as f:
+        with open(self.path / f"{mode}result_{model_key}.json", "w") as f:
             json.dump(result, f, indent=4)
 
         return avg_loss, mae, mse
+
