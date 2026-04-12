@@ -38,7 +38,7 @@ class Trainer:
 
         self.lr = 5e-4
         self.weight_decay = 1e-4
-        self.patience = 30
+        self.patience = 50
 
     def run(self) -> None:
         """
@@ -189,7 +189,7 @@ class Trainer:
         
 
     def train_model(self, model:Module, train_loader:DataLoader, val_loader:DataLoader, criterion:Module,
-                     optimizer:Optimizer, mode:str, num_epochs:int=100, safe:bool=True) -> Tuple[List, List]:
+                     optimizer:Optimizer, mode:str, num_epochs:int=150, safe:bool=True) -> Tuple[List, List]:
         """
         Trains MLP model and checks for best moddel with a given patiens or max epochs.
 
@@ -204,7 +204,7 @@ class Trainer:
         optimizer:Optimizer
         mode:str
             CV or not CV
-        num_epochs:int=100
+        num_epochs:int=150
         safe:bool=True
             Not safe for CV
         

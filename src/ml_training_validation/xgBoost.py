@@ -28,10 +28,12 @@ class XGBoost:
         self.pstd = pstd
         self.path = path
         self.model = xgb.XGBRegressor(
+            tree_method="gpu_hist",
+            predictor="gpu_predictor",
             objective="reg:squarederror",
             eval_metric="rmse",
-            early_stopping_rounds=30,
             random_state=42
+            #reg_lambda=1.0
         )
     def run(self) -> None:
         """
@@ -40,41 +42,50 @@ class XGBoost:
         logger.info("Start XGBoost")
         param_dist = {
             "n_estimators": [300, 500, 1000, 2000],
-            "max_depth": [3, 4, 5, 6, 8],
-            "learning_rate": [0.01, 0.03, 0.05, 0.1],
+            "max_depth": [3, 5, 8],
+            "learning_rate": [0.01, 0.05, 0.1],
             "subsample": [0.6, 0.8, 1.0],
             "colsample_bytree": [0.6, 0.8, 1.0],
-            "min_child_weight": [1, 3, 5, 10],
-            "gamma": [0, 0.1, 0.3, 1],
-            "reg_alpha": [0, 0.01, 0.1, 1],
-            "reg_lambda": [0.5, 1.0, 2.0, 5.0]
+            "min_child_weight": [1, 5, 10],
+            #"gamma": [0, 0.5, 1],
+            #"reg_alpha": [0, 0.01, 0.1, 1],
+            #"reg_lambda": [0.5, 2.0, 5.0]
         }
 
         search = RandomizedSearchCV(
             self.model,
             param_distributions=param_dist,
-            n_iter=50,
+            n_iter=35,
             cv=6,
             scoring='neg_mean_absolute_error',
             n_jobs=-1,
             random_state=42
         )
-        search.fit(self.x_train, self.y_train)
+        search.fit(
+            self.x_train,
+            self.y_train,
+        )
         self.model = search.best_estimator_
         logger.info(f"Best hyperparameters: {search.best_params_}")
 
-
-        self.model.fit(
+        model = xgb.XGBRegressor(**search.best_params_)
+        model.fit(
             self.x_train,
             self.y_train,
-            eval_set=[(self.x_val, self.y_val)],
-            verbose=False
+            eval_set=[(self.x_train, self.y_train), (self.x_val, self.y_val)],
+            eval_metric="rmse",
+            callbacks=[
+                xgb.callback.EarlyStopping(rounds=30, save_best=True)
+            ],
+            verbose=True
         )
         self.plot_early_stop(self.model, "")
         self.save_val(self.model, "")
 
         logger.info("XGBoost CV")
         modelCV = xgb.XGBRegressor(
+            tree_method="gpu_hist",
+            predictor="gpu_predictor",
             objective="reg:squarederror",
             eval_metric="rmse",
             random_state=42
@@ -105,23 +116,36 @@ class XGBoost:
         """
         results = model.evals_result()
 
-        train_metric = results['validation_0']['rmse']
-        train_metric = train_metric * self.pstd + self.pmean
+        train_loss = results["validation_0"]["rmse"]
+        val_loss   = results["validation_1"]["rmse"]
+        train_loss = train_loss * self.pstd + self.pmean
+        val_loss = val_loss * self.pstd + self.pmean
 
+        results = model.evals_result()
+
+        train_loss = results["validation_0"]["rmse"]
+        val_loss   = results["validation_1"]["rmse"]
 
         plt.figure(figsize=(8, 5))
         plt.grid(True, linestyle="--", alpha=0.6)
-        plt.plot(train_metric , label="Train")
+
+        plt.plot(train_loss, label="Train")
+        plt.plot(val_loss, label="Validation")
+
         best_iter = model.best_iteration
+
         plt.axvline(
             best_iter,
             linestyle="--",
             color="gray",
             label=f"Best Iteration ({best_iter})"
         )
-        plt.title(f"{mode}XGBoost Training Curve")
+
+        plt.title(f"{mode} XGBoost Training Curve")
         plt.xlabel("Boosting Round")
-        plt.ylabel("metric")
+        plt.ylabel("RMSE")
+        plt.legend()
+
         plt.savefig(self.path / f"{mode}XGB_loss.png", bbox_inches='tight')
         plt.close()
 
@@ -177,7 +201,7 @@ class XGBoost:
 
         logger.info(f"{mode} XGBoost prediction saved to {self.path} / {mode}XGB_prediction.png")       
 
-        joblib.dump(model, self.path / "XGB_model.joblib")
+        joblib.dump(model, self.path / f"{mode}XGB_model.joblib")
         logger.info(f"{mode} XGBoost model saved to {self.path} / {mode}XGB_model.joblib")
 
 

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=BA_test_run       
-#SBATCH --partition=epyc-gpu-test         # Partition mit GPU (falls verfügbar)
-#SBATCH --nodes=1                            # Anzahl Nodes
-#SBATCH --ntasks=1                           # Anzahl Tasks
-#SBATCH --cpus-per-task=64                    # CPU Kerne pro Task
-#SBATCH --gres=gpu:1                         # Anzahl GPUs (pro Node)
-#SBATCH --mem=128G                            # Arbeitsspeicher
-#SBATCH --time=01:20:00            # Max Laufzeit 6h (hh:mm:ss)
-#SBATCH --mail-type=END,FAIL         # Mail bei Ende oder Fehler
-#SBATCH --mail-user=jonas02boehringer@gmail.com  # Empfänger
+#SBATCH --partition=epyc-gpu-test                   # Partition mit GPU (falls verfügbar)
+#SBATCH --nodes=1                                   # Anzahl Nodes
+#SBATCH --ntasks=1                                  # Anzahl Tasks
+#SBATCH --cpus-per-task=32                          # CPU Kerne pro Task
+#SBATCH --gres=gpu:1                                # Anzahl GPUs (pro Node)
+#SBATCH --mem=128G                                  # Arbeitsspeicher
+#SBATCH --time=01:20:00                             # Max Laufzeit 6h (hh:mm:ss)
+#SBATCH --mail-type=END,FAIL                        # Mail bei Ende oder Fehler
+#SBATCH --mail-user=jonas02boehringer@gmail.com     # Empfänger
 
 # -----------------------------
 # Aktiviere virtuelle Umgebung
@@ -24,3 +24,4 @@ export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-1}
 # Starte den Workflow
 # -----------------------------
 srun python ~/ba/src/ml_training_validation/workflow.py --input_path ~/data7/feature --output_path /hpc/gpfs2/home/u/boehrijo/data7/output
+# 7 und dann weiter
