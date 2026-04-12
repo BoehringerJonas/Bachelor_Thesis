@@ -40,10 +40,10 @@ class FeatureZone:
         logger.info("def ResNet")
 
         self.resnet = self.get_res().to(self.device)
-        #self.resnet_reduce = nn.Linear(2048, 256).to(self.device)
+        self.resnet_reduce = nn.Linear(2048, 512).to(self.device)
 
         self.lstm_MLF = nn.LSTM(
-            input_size=2048,
+            input_size=512,
             hidden_size=64,
             num_layers=2,
             batch_first=True,
@@ -51,7 +51,7 @@ class FeatureZone:
         ).to(self.device)
 
         self.lstm_TIT = nn.LSTM(
-            input_size=2048,
+            input_size=512,
             hidden_size=64,
             num_layers=2,
             batch_first=True,
@@ -492,7 +492,7 @@ class FeatureZone:
                 features = self.resnet(chunk).flatten(1)
                 if torch.isnan(features).any():
                     print("NaNs detected after ResNet 3D!")
-                #features = F.relu(self.resnet_reduce(features))
+                features = F.relu(self.resnet_reduce(features))
 
                 spatial_features.append(features)
 
@@ -589,7 +589,7 @@ class FeatureZone:
                     print("NaNs detected after ResNetVP!")
                 features = features.flatten(1)
 
-                #features = F.relu(self.resnet_reduce(features))
+                features = F.relu(self.resnet_reduce(features))
 
                 spatial_features.append(features)
 
@@ -609,7 +609,6 @@ class FeatureZone:
         Returns
         -------
         torch.Tensor : LSTM features
-
         """
         seq = spatial_seq.to(self.device, dtype=torch.float32).unsqueeze(0)
         if modality == "MLF":

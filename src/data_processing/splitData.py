@@ -26,13 +26,16 @@ class SplitData():
         table = table[~table["Pat-ID"].str.startswith("AD")]
         pat = table[["Pat-ID", "PEEP"]].to_numpy()
         
+        lowest = []
         low = []
         mid = []
         high = []
         for id, p in pat:
-            if(p <= 12):
+            if p == 8:
+                lowest.append(id)
+            elif(8 < p <= 13):
                 low.append(id)
-            elif(12 < p < 19):
+            elif(13 < p < 21):
                 mid.append(id)
             else:
                 high.append(id)
@@ -41,7 +44,7 @@ class SplitData():
         mid1, mid2, mid3 = self.split(mid, 2, 2)
         high1, high2, high3 = self.split(high, 1, 1)
 
-        train = np.concatenate([low1, mid1, high1])
+        train = np.concatenate([lowest, low1, mid1, high1])
         val = np.concatenate([low2, mid2, high2])
         test = np.concatenate([low3, mid3, high3])
 

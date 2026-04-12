@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 from sklearn.metrics import mean_absolute_error, mean_squared_error, median_absolute_error, r2_score
+from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import cross_validate
 
 import xgboost as xgb
@@ -26,27 +27,51 @@ class XGBoost:
         self.pmean = pmean
         self.pstd = pstd
         self.path = path
-
-
+        self.model = xgb.XGBRegressor(
+            objective="reg:squarederror",
+            eval_metric="rmse",
+            early_stopping_rounds=30,
+            random_state=42
+        )
     def run(self) -> None:
         """
         Train and test XGBoost model. Start plot and safe prozess
         """
         logger.info("Start XGBoost")
-        model = xgb.XGBRegressor(
-            objective="reg:squarederror",
-            eval_metric="rmse",
-            early_stopping_rounds=30,    #>5
+        param_dist = {
+            "n_estimators": [300, 500, 1000, 2000],
+            "max_depth": [3, 4, 5, 6, 8],
+            "learning_rate": [0.01, 0.03, 0.05, 0.1],
+            "subsample": [0.6, 0.8, 1.0],
+            "colsample_bytree": [0.6, 0.8, 1.0],
+            "min_child_weight": [1, 3, 5, 10],
+            "gamma": [0, 0.1, 0.3, 1],
+            "reg_alpha": [0, 0.01, 0.1, 1],
+            "reg_lambda": [0.5, 1.0, 2.0, 5.0]
+        }
+
+        search = RandomizedSearchCV(
+            self.model,
+            param_distributions=param_dist,
+            n_iter=50,
+            cv=6,
+            scoring='neg_mean_absolute_error',
+            n_jobs=-1,
             random_state=42
         )
-        model.fit(
+        search.fit(self.x_train, self.y_train)
+        self.model = search.best_estimator_
+        logger.info(f"Best hyperparameters: {search.best_params_}")
+
+
+        self.model.fit(
             self.x_train,
             self.y_train,
             eval_set=[(self.x_val, self.y_val)],
             verbose=False
         )
-        self.plot_early_stop(model, "")
-        self.save_val(model, "")
+        self.plot_early_stop(self.model, "")
+        self.save_val(self.model, "")
 
         logger.info("XGBoost CV")
         modelCV = xgb.XGBRegressor(
@@ -138,7 +163,7 @@ class XGBoost:
             }
         }
 
-        with open(self.path / f"result_{model_key}.json", "w") as f:
+        with open(self.path / f"{mode}result_{model_key}.json", "w") as f:
             json.dump(result, f, indent=4)
 
 
