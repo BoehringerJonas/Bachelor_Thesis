@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=32                          # CPU Kerne pro Task
 #SBATCH --gres=gpu:1                                # Anzahl GPUs (pro Node)
 #SBATCH --mem=128G                                  # Arbeitsspeicher
-#SBATCH --time=02:00:00                             # Max Laufzeit 6h (hh:mm:ss)
+#SBATCH --time=03:00:00                             # Max Laufzeit 6h (hh:mm:ss)
 #SBATCH --mail-type=END,FAIL                        # Mail bei Ende oder Fehler
 #SBATCH --mail-user=jonas02boehringer@gmail.com     # Empfänger
 
@@ -23,5 +23,4 @@ export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-1}
 # -----------------------------
 # Starte den Workflow
 # -----------------------------
-srun python ~/ba/src/ml_training_validation/workflow.py --input_path ~/data7/feature --output_path /hpc/gpfs2/home/u/boehrijo/data7/output
-# 7 und dann weiter
+srun python ~/ba/src/ml_training_validation/workflow.py --input_path ~/data12/feature --output_path /hpc/gpfs2/home/u/boehrijo/data12/output

@@ -38,7 +38,7 @@ class Trainer:
 
         self.lr = 5e-4
         self.weight_decay = 1e-4
-        self.patience = 50
+        self.patience = 40
 
     def run(self) -> None:
         """
@@ -358,7 +358,7 @@ class Trainer:
         medae = median_absolute_error(y_true_real, y_pred_real)
         r2 = r2_score(y_true_real, y_pred_real)
         
-        model_key = f"MLP_{self.path.name}"
+        model_key = f"{mode}MLP_{self.path.name}"
         result = {
             self.path.parent.name: {
                 model_key: {

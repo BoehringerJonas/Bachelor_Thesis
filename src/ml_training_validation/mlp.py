@@ -79,17 +79,17 @@ class MLP(nn.Module):
 
         a = torch.cat([mlf, tit, tab], dim=1)
 
-        g = self.gate(a)  # (B, 3)
+        #g = self.gate(a)  # (B, 3)
 
-        g_mlf = g[:, 0:1]
-        g_tit = g[:, 1:2]
-        g_tab = g[:, 2:3]
+        #g_mlf = g[:, 0:1]
+        #g_tit = g[:, 1:2]
+        #g_tab = g[:, 2:3]
 
-        fused = torch.cat([
-            g_mlf * mlf,
-            g_tit * tit,
-            g_tab * tab
-        ], dim=1)
+        #fused = torch.cat([
+        #    g_mlf * mlf,
+        #    g_tit * tit,
+        #    g_tab * tab
+        #], dim=1)
 
-        x = self.fusion(fused)
+        x = self.fusion(a)
         return self.head(x)
