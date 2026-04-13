@@ -92,7 +92,7 @@ class XGBoost:
             verbose=True
         )
         self.plot_early_stop(model, "")
-        self.save_val(model, "")
+        self.save_val(model, mode="")
 
         logger.info("XGBoost CV")
         modelCV = xgb.XGBRegressor(
@@ -114,7 +114,7 @@ class XGBoost:
 
         best_idx = results["test_score"].argmax()
         best_model = results["estimator"][best_idx]
-        self.save_val(best_model, "CV")
+        self.save_val(best_model, mode="CV")
 
     def plot_early_stop(self, model:xgb.XGBRegressor, mode:str) -> None:
         """
@@ -185,7 +185,7 @@ class XGBoost:
         #logger.info(f"Model median absolut error: {medae}")
         #logger.info(f"Model R2 score: {r2}")
 
-        model_key = f"{mode}XGB_{self.path.parent.name}_{self.path.name}"
+        model_key = f"XGB_{mode}{self.path.parent.name}_{self.path.name}"
         result = {
             self.path.parent.name: {
                 model_key: {
@@ -198,7 +198,7 @@ class XGBoost:
             }
         }
 
-        with open(self.path / f"{mode}result_{model_key}.json", "w") as f:
+        with open(self.path / f"result_{mode}{model_key}.json", "w") as f:
             json.dump(result, f, indent=4)
 
 
@@ -207,12 +207,12 @@ class XGBoost:
         ax.set_xlabel("True Values")
         ax.set_ylabel("Predictions")
         ax.set_title(f"{mode}XGB Prediction vs True")
-        fig.savefig(self.path / f"{mode}XGB_prediction.png", bbox_inches='tight')
+        fig.savefig(self.path / f"XGB_{mode}prediction.png", bbox_inches='tight')
         plt.close(fig)
 
-        logger.info(f"{mode} XGBoost prediction saved to {self.path} / {mode}XGB_prediction.png")       
+        logger.info(f"{mode} XGBoost prediction saved to {self.path} / XGB_{mode}prediction.png")       
 
-        joblib.dump(model, self.path / f"{mode}XGB_model.joblib")
-        logger.info(f"{mode} XGBoost model saved to {self.path} / {mode}XGB_model.joblib")
+        joblib.dump(model, self.path / f"XGB_{mode}model.joblib")
+        logger.info(f"{mode} XGBoost model saved to {self.path} / XGB_{mode}model.joblib")
 
 

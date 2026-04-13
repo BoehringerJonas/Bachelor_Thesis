@@ -84,7 +84,7 @@ class Trainer:
                                                     self.val_loader, 
                                                     criterion, 
                                                     optimizer,
-                                                    ""
+                                                    mode=""
                                                     )
 
 
@@ -176,7 +176,7 @@ class Trainer:
                                     "CV"
                                     )
         
-        test_loss, test_mae, test_mse = self.evaluate_model(model, self.test_loader, criterion, "CV")
+        test_loss, test_mae, test_mse = self.evaluate_model(model, self.test_loader, criterion, mode="CV")
 
         plt.figure()
         plt.plot(train_losses, label="Train")
@@ -254,7 +254,7 @@ class Trainer:
                 best_val_loss = val_loss
                 patience_counter = 0
                 if safe:
-                    torch.save(model.state_dict(), self.path / f"{mode}MLP_model.pt")
+                    torch.save(model.state_dict(), self.path / f"MLP_{mode}model.pt")
                     logger.info("Validation improved → save model, reset patience")
             else:
                 patience_counter += 1
@@ -358,7 +358,7 @@ class Trainer:
         medae = median_absolute_error(y_true_real, y_pred_real)
         r2 = r2_score(y_true_real, y_pred_real)
         
-        model_key = f"{mode}MLP_{self.path.name}"
+        model_key = f"MLP_{mode}{self.path.name}"
         result = {
             self.path.parent.name: {
                 model_key: {
@@ -370,7 +370,7 @@ class Trainer:
                 }
             }
         }
-        with open(self.path / f"{mode}result_{model_key}.json", "w") as f:
+        with open(self.path / f"result{mode}_{model_key}.json", "w") as f:
             json.dump(result, f, indent=4)
 
         fig, ax = plt.subplots(figsize=(6, 6))
@@ -381,7 +381,7 @@ class Trainer:
         fig.savefig(self.path / f"{mode}MLP_prediction.png", bbox_inches='tight')
         plt.close(fig)
 
-        logger.info(f"{mode} MLP prediction saved to {self.path} / {mode}MLP_prediction.png")       
+        logger.info(f"{mode} MLP prediction saved to {self.path} / MLP_{mode}prediction.png")       
 
         return avg_loss, mae, mse
 
