@@ -14,19 +14,31 @@ class MLP(nn.Module):
             Size of TIT features
         tab_size    : int
             Size of Tab features
+
+        Tests
+        ----------
+        Runs with ReLU(), GeLU, SiLU. tested different combinations. 
+        In the end ist shows that the mix of GeLU and SiLU works best. 
+        When changing GeLU to ReLU it doesn`t makes a big diferance, 
+        but the GeLu is slightly better.
+
+        Runs with a fusion layer was worse.
+
+        Does one run with gate- and fusion-Layer together and it was way worse.
         """
+
         super().__init__()
         self.mlf_net = nn.Sequential(
             nn.Linear(mlf_size, 64),
             nn.LayerNorm(64),
-            nn.SiLU(),#nn.ReLU(),
+            nn.SiLU(),
             nn.Dropout(0.1)
         )
 
         self.tit_net = nn.Sequential(
             nn.Linear(tit_size, 64),
             nn.LayerNorm(64),
-            nn.SiLU(),#nn.ReLU(),
+            nn.SiLU(),
             nn.Dropout(0.1)
         )
 
