@@ -1,12 +1,9 @@
-import joblib
 import logging
 import numpy as np
 from pathlib import Path
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 from typing import Tuple
-from sklearn.preprocessing import StandardScaler
-
 
 logger = logging.getLogger("workflow")
 
@@ -18,7 +15,7 @@ class PatientDataModule:
     
     def run(self) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
         """
-        Checks for wrong values, pre processes tabular data an d does normalisation. 
+        Checks for wrong values. 
         Stackes the data to train, val, test and returns them as dataloader
         
         Returns
@@ -28,7 +25,6 @@ class PatientDataModule:
         DataLoader  : test dataset as dataloader
         DataLoader  : train + val dataset as dataloader
         """
-        scaler_tab = StandardScaler(with_mean=True, with_std=True)
 
         x_train_tit = []
         x_train_mlf = []
@@ -128,12 +124,8 @@ class PatientDataModule:
         x_val_tab = x_val_tab.detach().cpu().numpy()
         x_test_tab = x_test_tab.detach().cpu().numpy()
 
-        x_train_tab = scaler_tab.fit_transform(x_train_tab)
         x_train_tab = np.concatenate([x_train_tab, x_train_tab_cat], axis=1)
-        x_val_tab = scaler_tab.transform(x_val_tab)
         x_val_tab   = np.concatenate([x_val_tab, x_val_tab_cat], axis=1)
-
-        x_test_tab = scaler_tab.transform(x_test_tab)
         x_test_tab  = np.concatenate([x_test_tab, x_test_tab_cat], axis=1)
 
         x_train_tab = torch.from_numpy(x_train_tab).float()
@@ -147,14 +139,4 @@ class PatientDataModule:
         test_set = TensorDataset(x_test_tit, x_test_mlf, x_test_tab, y_test)
         test = DataLoader(test_set, self.batch_size, num_workers=2, pin_memory=True)
 
-        x_full_tit = torch.cat([x_train_tit, x_val_tit], dim=0)
-        x_full_mlf = torch.cat([x_train_mlf, x_val_mlf], dim=0)
-        x_full_tab = torch.cat([x_train_tab, x_val_tab], dim=0)
-        y_full     = torch.cat([y_train, y_val], dim=0)
-
-        full_set = TensorDataset(x_full_tit, x_full_mlf, x_full_tab, y_full)
-        full = DataLoader(full_set, self.batch_size, num_workers=2, pin_memory=True)
-
-        joblib.dump(scaler_tab, self.path / "scaler_tab.joblib")
-
-        return train, val, test, full
+        return train, val, test

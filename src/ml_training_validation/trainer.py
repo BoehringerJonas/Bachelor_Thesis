@@ -84,9 +84,7 @@ class Trainer:
                                                     self.val_loader, 
                                                     criterion, 
                                                     optimizer,
-                                                    mode=""
                                                     )
-
 
         # Evaluate the model
         test_loss, test_mae, test_mse = self.evaluate_model(model, self.test_loader, criterion, "")
@@ -100,96 +98,9 @@ class Trainer:
         plt.title("MLP Training with Early Stopping")
         plt.savefig(self.path / "training_curveMLP.png")
 
-        self.crossVal(mlf_size, tit_size, tab_size)
-
-
-    def crossVal(self, mlf_size:int, tit_size:int, tab_size:int) -> None:
-        """
-        Get the best model from the folds.
-
-        Parameters
-        ----------
-        mlf_size    : int
-            Size of MLF features
-        tit_size    : int
-            Size of MLF features
-        tab_size    : int
-            Size of MLF features
-        """
-        kfolds = 6
-        logger.info(f"MLP CrossFoldVal folds: {kfolds}")
-        best_split = {}
-        best_loss = np.inf
-
-        kfold = KFold(n_splits=kfolds, shuffle=True)
-        dataset = self.full_loader.dataset
-        for (train_ids, val_ids) in kfold.split(dataset):
-            model = MLP(
-                mlf_size=mlf_size,
-                tit_size=tit_size,
-                tab_size=tab_size
-            ).to(self.device)
-
-            train_subsampler = Subset(dataset, train_ids)
-            val_subsampler = Subset(dataset, val_ids)
-            train_loader = DataLoader(train_subsampler, batch_size=64, shuffle=True) # batchsize 32 test
-            val_loader = DataLoader(val_subsampler, batch_size=64, shuffle=False)
-
-            optimizer = torch.optim.AdamW(
-            model.parameters(),
-            lr=self.lr,
-            weight_decay=self.weight_decay
-            )
-
-            criterion = torch.nn.MSELoss()
-            train_losses, val_losses = self.train_model(model, 
-                                                        train_loader, 
-                                                        val_loader, 
-                                                        criterion, 
-                                                        optimizer,
-                                                        "", 
-                                                        safe=False)
-            if(val_losses[-1] < best_loss):
-                best_loss = val_losses[-1]
-                best_split = {
-                    "train_loader": train_loader,
-                    "val_loader": val_loader
-                }
-
-        model = MLP(
-            mlf_size=mlf_size,
-            tit_size=tit_size,
-            tab_size=tab_size
-        ).to(self.device)
-
-        optimizer = torch.optim.AdamW(
-            model.parameters(),
-            lr=self.lr,
-            weight_decay=self.weight_decay
-            )
-
-        train_losses, val_losses = self.train_model(model, 
-                                    best_split["train_loader"], 
-                                    best_split["val_loader"], 
-                                    criterion, 
-                                    optimizer, 
-                                    "CV"
-                                    )
-        
-        test_loss, test_mae, test_mse = self.evaluate_model(model, self.test_loader, criterion, mode="CV")
-
-        plt.figure()
-        plt.plot(train_losses, label="Train")
-        plt.plot(val_losses, label="Validation")
-        plt.legend()
-        plt.xlabel("Epoch")
-        plt.ylabel("MSE")
-        plt.title("CV MLP Training with Early Stopping")
-        plt.savefig(self.path / "CVtraining_curveMLP.png")
-        
 
     def train_model(self, model:Module, train_loader:DataLoader, val_loader:DataLoader, criterion:Module,
-                     optimizer:Optimizer, mode:str, num_epochs:int=150, safe:bool=True) -> Tuple[List, List]:
+                     optimizer:Optimizer, num_epochs:int=150) -> Tuple[List, List]:
         """
         Trains MLP model and checks for best moddel with a given patiens or max epochs.
 
@@ -202,11 +113,7 @@ class Trainer:
         criterion:Module
             MSE Loss
         optimizer:Optimizer
-        mode:str
-            CV or not CV
         num_epochs:int=150
-        safe:bool=True
-            Not safe for CV
         
         Returns
         -------
@@ -253,9 +160,8 @@ class Trainer:
             if val_loss < best_val_loss:# - min_delta: 
                 best_val_loss = val_loss
                 patience_counter = 0
-                if safe:
-                    torch.save(model.state_dict(), self.path / f"MLP_{mode}model.pt")
-                    logger.info("Validation improved → save model, reset patience")
+                torch.save(model.state_dict(), self.path / f"MLP_model.pt")
+                logger.info("Validation improved → save model, reset patience")
             else:
                 patience_counter += 1
                 logger.info(f"No significant improvement (patience {patience_counter}/{self.patience})")
@@ -265,7 +171,9 @@ class Trainer:
                 logger.info("Early stopping triggered")
                 break
 
-        return train_losses * self.pstd + self.pmean, val_losses * self.pstd + self.pmean
+        train_losses = np.array(train_losses)
+        val_losses = np.array(val_losses)
+        return train_losses * (self.pstd ** 2), val_losses * (self.pstd ** 2)
     
     def validate_model(self, model:Module, val_loader:DataLoader, criterion:Module) -> float:
         """
@@ -302,7 +210,7 @@ class Trainer:
 
 
     def evaluate_model(self, model:Module, test_loader:DataLoader, 
-                       criterion:Module, mode:str) -> Tuple[float, float, float]:
+                       criterion:Module,) -> Tuple[float, float, float]:
         """
         Tests the performance of the end model.
 
@@ -313,8 +221,7 @@ class Trainer:
         test_loader : DataLoader
         criterion   : Module
             MSE Loss
-        mode        : str
-            CV or not CV
+
 
         Returns
         -------
@@ -344,7 +251,7 @@ class Trainer:
                 all_preds.append(outputs.cpu().numpy())
                 all_targets.append(targets.cpu().numpy())
         
-        avg_loss = test_loss / len(test_loader.dataset) * self.pstd + self.pmean
+        avg_loss = (test_loss / len(test_loader.dataset)) * (self.pstd ** 2)
         
         y_pred = np.concatenate(all_preds)
         y_true = np.concatenate(all_targets)
@@ -358,7 +265,7 @@ class Trainer:
         medae = median_absolute_error(y_true_real, y_pred_real)
         r2 = r2_score(y_true_real, y_pred_real)
         
-        model_key = f"MLP_{mode}{self.path.name}"
+        model_key = f"MLP_{self.path.name}"
         result = {
             self.path.parent.name: {
                 model_key: {
@@ -370,18 +277,18 @@ class Trainer:
                 }
             }
         }
-        with open(self.path / f"result{mode}_{model_key}.json", "w") as f:
+        with open(self.path / f"result_{model_key}.json", "w") as f:
             json.dump(result, f, indent=4)
 
         fig, ax = plt.subplots(figsize=(6, 6))
         ax.scatter(y_true_real, y_pred_real)
         ax.set_xlabel("True Values")
         ax.set_ylabel("Predictions")
-        ax.set_title(f"{mode}MLP Prediction vs True")
-        fig.savefig(self.path / f"{mode}MLP_prediction.png", bbox_inches='tight')
+        ax.set_title(f"MLP Prediction vs True")
+        fig.savefig(self.path / f"MLP_prediction.png", bbox_inches='tight')
         plt.close(fig)
 
-        logger.info(f"{mode} MLP prediction saved to {self.path} / MLP_{mode}prediction.png")       
+        logger.info(f"MLP prediction saved to {self.path} / MLP_prediction.png")       
 
         return avg_loss, mae, mse
 

@@ -48,9 +48,6 @@ class XGBoost:
             "subsample": [0.6, 0.8, 1.0],
             "colsample_bytree": [0.6, 1.0],
             "min_child_weight": [1, 5, 10],
-            #"gamma": [0, 0.5, 1],
-            #"reg_alpha": [0, 0.01, 0.1, 1],
-            #"reg_lambda": [0.5, 2.0, 5.0]
         }
 
         search = RandomizedSearchCV(
@@ -91,51 +88,25 @@ class XGBoost:
             eval_set=[(self.x_train, self.y_train), (self.x_val, self.y_val)],
             verbose=True
         )
-        self.plot_early_stop(model, "")
-        self.save_val(model, mode="")
+        self.plot_early_stop(model)
+        self.save_val(model)
 
-        logger.info("XGBoost CV")
-        modelCV = xgb.XGBRegressor(
-            **best_params,
-            tree_method="hist",
-            device="cuda",
-            objective="reg:squarederror",
-            eval_metric="rmse",
-            random_state=42
-        )
-        
-        results = cross_validate(
-            modelCV, 
-            self.x_full, self.y_full,
-            cv=7,
-            scoring="neg_mean_squared_error",
-            return_estimator=True
-        )
 
-        best_idx = results["test_score"].argmax()
-        best_model = results["estimator"][best_idx]
-        self.save_val(best_model, mode="CV")
-
-    def plot_early_stop(self, model:xgb.XGBRegressor, mode:str) -> None:
+    def plot_early_stop(self, model:xgb.XGBRegressor) -> None:
         """
         PLots the early Stopping of the normal trained XGBoost.
 
         Parameters
         ----------
         model:xgb.XGBRegressor
-        mode:str
-            CV or not CV
-        
+       
         """
         results = model.evals_result()
 
         train_loss = results["validation_0"]["rmse"]
         val_loss   = results["validation_1"]["rmse"]
-        train_loss = train_loss * self.pstd + self.pmean
-        val_loss = val_loss * self.pstd + self.pmean
-
-        results = model.evals_result()
-
+        train_loss = train_loss * self.pstd
+        val_loss = val_loss * self.pstd
 
         plt.figure(figsize=(8, 5))
         plt.grid(True, linestyle="--", alpha=0.6)
@@ -152,23 +123,21 @@ class XGBoost:
             label=f"Best Iteration ({best_iter})"
         )
 
-        plt.title(f"{mode} XGBoost Training Curve")
+        plt.title(f"XGBoost Training Curve")
         plt.xlabel("Boosting Round")
         plt.ylabel("RMSE")
         plt.legend()
 
-        plt.savefig(self.path / f"{mode}XGB_loss.png", bbox_inches='tight')
+        plt.savefig(self.path / f"XGB_loss.png", bbox_inches='tight')
         plt.close()
 
-    def save_val(self, model:xgb.XGBRegressor, mode:str) -> None:
+    def save_val(self, model:xgb.XGBRegressor) -> None:
         """
         Calculate Metrics, Plot prediction vs True and Safe to json, safe the model.
 
         Parameters
         ----------
         model:xgb.XGBRegressor
-        mode:str
-            CV or not CV
 
         """
         y_pred = model.predict(self.x_test)
@@ -180,12 +149,8 @@ class XGBoost:
         rmse = np.sqrt(mse)
         medae = median_absolute_error(y_true_real, y_pred_real)
         r2 = r2_score(y_true_real, y_pred_real)
-        #logger.info(f"Model mean absolut error: {mae}")
-        #logger.info(f"Model mean squared error: {mse}")
-        #logger.info(f"Model median absolut error: {medae}")
-        #logger.info(f"Model R2 score: {r2}")
 
-        model_key = f"XGB_{mode}{self.path.parent.name}_{self.path.name}"
+        model_key = f"XGB_{self.path.parent.name}_{self.path.name}"
         result = {
             self.path.parent.name: {
                 model_key: {
@@ -198,7 +163,7 @@ class XGBoost:
             }
         }
 
-        with open(self.path / f"result_{mode}{model_key}.json", "w") as f:
+        with open(self.path / f"result_{model_key}.json", "w") as f:
             json.dump(result, f, indent=4)
 
 
@@ -206,13 +171,13 @@ class XGBoost:
         ax.scatter(y_true_real, y_pred_real)
         ax.set_xlabel("True Values")
         ax.set_ylabel("Predictions")
-        ax.set_title(f"{mode}XGB Prediction vs True")
-        fig.savefig(self.path / f"XGB_{mode}prediction.png", bbox_inches='tight')
+        ax.set_title(f"XGB Prediction vs True")
+        fig.savefig(self.path / f"XGB_prediction.png", bbox_inches='tight')
         plt.close(fig)
 
-        logger.info(f"{mode} XGBoost prediction saved to {self.path} / XGB_{mode}prediction.png")       
+        logger.info(f"XGBoost prediction saved to {self.path} / XGB_prediction.png")       
 
-        joblib.dump(model, self.path / f"XGB_{mode}model.joblib")
-        logger.info(f"{mode} XGBoost model saved to {self.path} / XGB_{mode}model.joblib")
+        joblib.dump(model, self.path / f"XGB_model.joblib")
+        logger.info(f"XGBoost model saved to {self.path} / XGB_model.joblib")
 
 
