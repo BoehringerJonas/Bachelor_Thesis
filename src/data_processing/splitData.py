@@ -86,7 +86,7 @@ class SplitData():
 
         """
         pats = np.array(pats)
-        np.random.seed(42)
+        np.random.RandomState(42) 
         np.random.shuffle(pats)
 
         train = pats[n_test + n_val:]

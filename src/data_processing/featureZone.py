@@ -174,13 +174,13 @@ class FeatureZone:
         np.savez_compressed(
             save_path / f"{p.name}.npz",
             sex=np.array([data['sex']], dtype=np.float32),
-            age=np.array([(data['age'] - self.amean) / (self.astd + 1e-6)], dtype=np.float32),
-            BMI=np.array([(data['BMI'] - self.bmean) / (self.bstd + 1e-6)], dtype=np.float32),
-            weight=np.array([(data['weight'] - self.wmean) / (self.wstd + 1e-6)], dtype=np.float32),
-            height=np.array([(data['height'] - self.hmean) / (self.hstd + 1e-6)], dtype=np.float32),
+            age=np.array([(data['age'] - self.amean) / self.astd], dtype=np.float32),
+            BMI=np.array([(data['BMI'] - self.bmean) / self.bstd], dtype=np.float32),
+            weight=np.array([(data['weight'] - self.wmean) / self.wstd], dtype=np.float32),
+            height=np.array([(data['height'] - self.hmean) / self.hstd], dtype=np.float32),
             smoke=np.array([data['smoke']], dtype=np.float32),
             targetPEEP=np.array(
-                [(data['targetPEEP'] - self.pmean) / (self.pstd + 1e-6)],
+                [(data['targetPEEP'] - self.pmean) / self.pstd],
                 dtype=np.float32
             ),
         )
@@ -190,8 +190,13 @@ class FeatureZone:
         """
         Coordinates the calculation of min, max, mean and std of the data. Safes everything.
         """
-        MLFmin, MLFmax, MLFpmean, MLFpstd, MLFvmean, MLFvstd = self.get_global("MLF")
-        TITmin, TITmax, TITpmean, TITpstd, TITvmean, TITvstd = self.get_global("TIT")
+        if self.split != "train":
+            raise RuntimeError(
+                f"calc_stats darf nur auf dem train-Split laufen, nicht auf '{self.split}'"
+            )
+            
+        MLFmean, MLFstd, MLFpmean, MLFpstd, MLFvmean, MLFvstd = self.get_global("MLF")
+        TITmean, TITstd, TITpmean, TITpstd, TITvmean, TITvstd = self.get_global("TIT")
 
         amean, astd, bmean, bstd, wmean, wstd, hmean, hstd, pmean, pstd = self.get_tglobal()
 
@@ -200,14 +205,14 @@ class FeatureZone:
 
         np.savez_compressed(
             spath / "train_stats.npz",
-            MLFmin=MLFmin,
-            MLFmax=MLFmax,
+            MLFmean=MLFmean,
+            MLFstd=MLFstd,
             MLFpmean=MLFpmean,
             MLFpstd=MLFpstd,
             MLFvmean=MLFvmean,
             MLFvstd=MLFvstd,
-            TITmin=TITmin,
-            TITmax=TITmax,
+            TITmean=TITmean,
+            TITstd=TITstd,
             TITpmean=TITpmean,
             TITpstd=TITpstd,
             TITvmean=TITvmean,
@@ -231,10 +236,10 @@ class FeatureZone:
         spath = self.path / "feature" / self.set / "stats"
         stats = np.load(spath / "train_stats.npz")
 
-        self.MLFmin = torch.tensor(stats["MLFmin"], device=self.device)
-        self.MLFmax = torch.tensor(stats["MLFmax"], device=self.device)
-        self.TITmin = torch.tensor(stats["TITmin"], device=self.device)
-        self.TITmax = torch.tensor(stats["TITmax"], device=self.device)
+        self.MLFmean = torch.tensor(stats["MLFmean"], device=self.device)
+        self.MLFstd = torch.tensor(stats["MLFstd"], device=self.device)
+        self.TITmean = torch.tensor(stats["TITmean"], device=self.device)
+        self.TITstd = torch.tensor(stats["TITstd"], device=self.device)
 
         self.MLFpmean = torch.tensor(stats["MLFpmean"], device=self.device)
         self.MLFpstd = torch.tensor(stats["MLFpstd"], device=self.device)
@@ -369,12 +374,9 @@ class FeatureZone:
         """
         logger.info("Start get_global for: " + modality)
 
-        p_sum = v_sum = 0.0
-        p_sq_sum = v_sq_sum = 0.0
-        p_count = v_count = 0
-
-        amax = -np.inf
-        amin = np.inf
+        p_sum = v_sum = a_sum = 0.0
+        p_sq_sum = v_sq_sum = a_sq_sum = 0.0
+        p_count = v_count = a_count = 0
 
         pat_folders = sorted([
             f for f in (self.path / self.folder / self.split).iterdir()
@@ -390,8 +392,9 @@ class FeatureZone:
 
             data = np.load(path)
 
-            amin = min(amin, np.nanmin(data["EITdata"]))
-            amax = max(amax, np.nanmax(data["EITdata"]))
+            a_sum += data['EITdata'].sum()
+            a_sq_sum += np.square(data['EITdata']).sum()
+            a_count += data['EITdata'].size
 
             p_sum += data['pressureData'].sum()
             p_sq_sum += np.square(data['pressureData']).sum()
@@ -402,9 +405,13 @@ class FeatureZone:
             v_count += data['volumeData'].size
 
             del data
-
         if p_count == 0 or v_count == 0:
             raise RuntimeError(f"No pressure/volume data found for modality {modality}")
+        
+        a_mean = a_sum / a_count
+        a_var = a_sq_sum / a_count - a_mean**2
+        a_var = np.maximum(a_var, 0.0)
+        a_std = np.sqrt(a_var) + 1e-6
 
         p_mean = p_sum / p_count
         p_var = p_sq_sum / p_count - p_mean**2
@@ -417,7 +424,7 @@ class FeatureZone:
         v_std = np.sqrt(v_var) + 1e-6
 
         return (
-            np.float32(amin), np.float32(amax),
+            np.float32(a_mean), np.float32(a_std),
             np.float32(p_mean), np.float32(p_std),
             np.float32(v_mean), np.float32(v_std)
         )
@@ -469,18 +476,14 @@ class FeatureZone:
 
                 if modality == "MLF":
                     chunk[mask] = (
-                        (chunk[mask] - self.MLFmin)
-                        / (self.MLFmax - self.MLFmin + 1e-6)
+                        (chunk[mask] - self.MLFmean)
+                        / (self.MLFstd + 1e-6)
                     )
                 else:
                     chunk[mask] = (
-                        (chunk[mask] - self.TITmin)
-                        / (self.TITmax - self.TITmin + 1e-6)
+                        (chunk[mask] - self.TITmean)
+                        / (self.TITstd + 1e-6)
                     )
-
-                chunk[:,0,:,:][mask[:,0,:,:]] = (chunk[:,0,:,:][mask[:,0,:,:]] - 0.485) / 0.229
-                chunk[:,1,:,:][mask[:,1,:,:]] = (chunk[:,1,:,:][mask[:,1,:,:]] - 0.456) / 0.224
-                chunk[:,2,:,:][mask[:,2,:,:]] = (chunk[:,2,:,:][mask[:,2,:,:]] - 0.406) / 0.225
 
                 chunk[~mask] = 0.0
 
@@ -501,7 +504,7 @@ class FeatureZone:
     def extract_resnet_featuresVP(self,
         frames: np.ndarray, pre: np.ndarray,
         vol: np.ndarray, modality: str, 
-        batch_size=256
+        batch_size=2048
     ) -> torch.Tensor:
         """
         Builds 3D pictures out of the gray scale pictures, the pressure an volume data and 
@@ -547,30 +550,29 @@ class FeatureZone:
 
                 if modality == "MLF":
                     chunk[mask] = (
-                        (chunk[mask] - self.MLFmin)
-                        / (self.MLFmax - self.MLFmin + 1e-6)
+                        (chunk[mask] - self.MLFmean)
+                        / (self.MLFstd + 1e-6)
                     )
                 else:
                     chunk[mask] = (
-                        (chunk[mask] - self.TITmin)
-                        / (self.TITmax - self.TITmin + 1e-6)
+                        (chunk[mask] - self.TITmean)
+                        / (self.TITstd + 1e-6)
                     )
 
                 chunk[:, 0, :, :][mask[:, 0, :, :]] = (
-                    (chunk[:, 0, :, :][mask[:, 0, :, :]] - 0.485) / 0.229
+                    chunk[:, 0, :, :][mask[:, 0, :, :]]
                 )
-
                 chunk[~mask] = 0.0
 
                 p = torch.from_numpy(pre[0, i:i+batch_size]).float().to(self.device)
                 v = torch.from_numpy(vol[0, i:i+batch_size]).float().to(self.device)
 
                 if modality == "MLF":
-                    p = (p - self.MLFpmean) / (self.MLFpstd + 1e-6)
-                    v = (v - self.MLFvmean) / (self.MLFvstd + 1e-6)
+                    p = (p - self.MLFpmean) / self.MLFpstd
+                    v = (v - self.MLFvmean) / self.MLFvstd
                 else:
-                    p = (p - self.TITpmean) / (self.TITpstd + 1e-6)
-                    v = (v - self.TITvmean) / (self.TITvstd + 1e-6)
+                    p = (p - self.TITpmean) / self.TITpstd
+                    v = (v - self.TITvmean) / self.TITvstd
 
                 pChunk = p.view(-1, 1, 1, 1).expand(-1, 1, chunk.shape[2], chunk.shape[3])
                 vChunk = v.view(-1, 1, 1, 1).expand(-1, 1, chunk.shape[2], chunk.shape[3])
