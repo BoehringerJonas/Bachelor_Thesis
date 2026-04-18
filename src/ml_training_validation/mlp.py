@@ -62,7 +62,7 @@ class MLP(nn.Module):
         )
         
         self.head = nn.Sequential(
-            nn.Linear(64, 32),
+            nn.Linear(64 + 64 + 16, 32),
             nn.GELU(),#nn.ReLU(),
             nn.Linear(32, 1)
         )
@@ -103,5 +103,5 @@ class MLP(nn.Module):
         #    g_tab * tab
         #], dim=1)
 
-        x = self.fusion(a)
-        return self.head(x)
+        #x = self.fusion(a)
+        return self.head(a)
