@@ -41,6 +41,7 @@ class FeatureZone:
 
         self.resnet = self.get_res().to(self.device)
         self.resnet_reduce = nn.Linear(2048, 512).to(self.device)
+        self.reduce = nn.Linear(5* 512, 32)
 
         self.resnet.eval()
 
@@ -579,9 +580,9 @@ class FeatureZone:
     def temp_pool(self, x):
         mean = x.mean(dim=0)
         std = x.std(dim=0)
-        max_val = x.max(dim=0).values
-        min_val = torch.quantile(x, 0.05, dim=0)
-        range_val = max_val - min_val
+        q10 = torch.quantile(x, 0.1, dim=0)
+        q90 = torch.quantile(x, 0.9, dim=0)
+        range_val = q10 - q90
 
         if x.shape[0] >= 2:
             dx = x[1:] - x[:-1]
@@ -599,7 +600,7 @@ class FeatureZone:
             dx_mean,
             dx_std
         ], dim=0) 
-        return result
+        return F.relu(self.reduce(result))
 
 
 def worker(gpu_id:int, gpu_tasks: List[List[Tuple[Path, str, str, List[Path]]]]) -> None:

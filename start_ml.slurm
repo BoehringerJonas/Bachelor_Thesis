@@ -23,4 +23,4 @@ export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-1}
 # -----------------------------
 # Starte den Workflow
 # -----------------------------
-srun python ~/ba/src/ml_training_validation/workflow.py --input_path ~/data12/feature --output_path /hpc/gpfs2/home/u/boehrijo/data12/output
+srun python ~/ba/src/ml_training_validation/workflow.py --input_path ~/run1/feature --output_path /hpc/gpfs2/home/u/boehrijo/run1/output
