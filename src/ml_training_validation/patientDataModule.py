@@ -46,7 +46,7 @@ class PatientDataModule:
         pat_folders = sorted([f for f in self.path.iterdir() if f.is_dir()])        
         for p in pat_folders:
 
-            eit = [np.load(f) for f in sorted(p.glob("*_LSTM.npz"))]
+            eit = [np.load(f) for f in sorted(p.glob("*_END.npz"))]
             for data in eit:
                 tit = torch.tensor(data["tit"], dtype=torch.float32).squeeze(0)
                 mlf = torch.tensor(data["mlf"], dtype=torch.float32).squeeze(0)

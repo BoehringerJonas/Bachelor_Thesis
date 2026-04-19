@@ -42,28 +42,7 @@ class FeatureZone:
         self.resnet = self.get_res().to(self.device)
         self.resnet_reduce = nn.Linear(2048, 512).to(self.device)
 
-        self.lstm_MLF = nn.LSTM(
-            input_size=512,
-            hidden_size=64,
-            num_layers=2,
-            batch_first=True,
-            dropout=0.1
-        ).to(self.device)
-
-        self.lstm_TIT = nn.LSTM(
-            input_size=512,
-            hidden_size=64,
-            num_layers=2,
-            batch_first=True,
-            dropout=0.1
-        ).to(self.device)
-
-        self.lstm_reduce_MLF = nn.Linear(192, 16).to(self.device)
-        self.lstm_reduce_TIT = nn.Linear(192, 16).to(self.device)
-
         self.resnet.eval()
-        self.lstm_MLF.eval()
-        self.lstm_TIT.eval()
 
     def run_subset(self, pat_folders:Path) -> None:
         """
@@ -80,7 +59,7 @@ class FeatureZone:
 
     def process_patient(self, p: Path) -> None:
         """
-        Loads patient files and extract features with a Resnet50 and a LSTM encoder out 
+        Loads patient files and extract features with a Resnet50 and a temporal pooling out 
         of MLF and TIT data. 
         Normalize and safe tabular data.
         
@@ -100,14 +79,14 @@ class FeatureZone:
         mlfData = np.load(mlfPath)
 
         mlfRes3D = self.extract_resnet_features3D(mlfData['EITdata'], "MLF").detach().cpu()
-        mlfLSTM3D = self.extract_LSTM_features(mlfRes3D, "MLF").detach().cpu()
+        mlfTEMP3D = self.temp_pool(mlfRes3D).detach().cpu()
 
 
         titPath = p / "TITeit.npz"
         titData = np.load(titPath)
 
         titRes3D = self.extract_resnet_features3D(titData['EITdata'], "TIT").detach().cpu()
-        titLSTM3D = self.extract_LSTM_features(titRes3D, "TIT").detach().cpu()
+        titTEMP3D = self.temp_pool(titRes3D).detach().cpu()
 
         save_path = self.path / 'feature' / self.set / "3D" / self.split
         save_path.mkdir(parents=True, exist_ok=True)
@@ -120,13 +99,13 @@ class FeatureZone:
         )
 
         np.savez_compressed(
-            save_path / f"{p.name}_LSTM.npz",
+            save_path / f"{p.name}_END.npz",
             patient_id=p.name,
-            mlf=mlfLSTM3D.numpy(),
-            tit=titLSTM3D.numpy(),
+            mlf=mlfTEMP3D.numpy(),
+            tit=titTEMP3D.numpy(),
         )
 
-        del mlfLSTM3D, titLSTM3D
+        del mlfTEMP3D, titTEMP3D
 
         logger.info("VP")
 
@@ -137,7 +116,7 @@ class FeatureZone:
             "MLF"
         ).detach().cpu()
 
-        mlfLSTMVP = self.extract_LSTM_features(mlfResVP, "MLF").detach().cpu()
+        mlfTEMPVP = self.temp_pool(mlfResVP).detach().cpu()
 
         titResVP = self.extract_resnet_featuresVP(
             titData['EITdata'],
@@ -146,7 +125,7 @@ class FeatureZone:
             "TIT"
         ).detach().cpu()
 
-        titLSTMVP = self.extract_LSTM_features(titResVP, "TIT").detach().cpu()
+        titTEMPVP = self.temp_pool(titResVP).detach().cpu()
 
         save_path = self.path / 'feature' / self.set / "VP" / self.split
         save_path.mkdir(parents=True, exist_ok=True)
@@ -159,10 +138,10 @@ class FeatureZone:
         )
 
         np.savez_compressed(
-            save_path / f"{p.name}_LSTM.npz",
+            save_path / f"{p.name}_END.npz",
             patient_id=p.name,
-            mlf=mlfLSTMVP.numpy(),
-            tit=titLSTMVP.numpy(),
+            mlf=mlfTEMPVP.numpy(),
+            tit=titTEMPVP.numpy(),
         )
 
         path = p / "table.npz"
@@ -597,30 +576,30 @@ class FeatureZone:
 
         return torch.cat(spatial_features, dim=0)
 
-    def extract_LSTM_features(self, spatial_seq:torch.Tensor, modality:str) -> torch.Tensor:
-        """
-        Extracts LSTM features with mean and max pooling and reduce to needet size.
+    def temp_pool(self, x):
+        mean = x.mean(dim=0)
+        std = x.std(dim=0)
+        max_val = x.max(dim=0).values
+        min_val = torch.quantile(x, 0.05, dim=0)
+        range_val = max_val - min_val
 
-        Parameters
-        ----------
-        spatial_seq : torch.Tensor
-            input Resnet features
-        modality    : str
-            MLF or TIT for correct stats
+        if x.shape[0] >= 2:
+            dx = x[1:] - x[:-1]
+            dx_mean = dx.mean(dim=0)
+            dx_std = dx.std(dim=0)
 
-        Returns
-        -------
-        torch.Tensor : LSTM features
-        """
-        seq = spatial_seq.to(self.device, dtype=torch.float32).unsqueeze(0)
-        if modality == "MLF":
-            out, (h_n, _) = self.lstm_MLF(seq)
-            x = torch.cat([h_n[-1], out.mean(1), out.max(1).values], dim=1)
-            return F.relu(self.lstm_reduce_MLF(x))
         else:
-            out, (h_n, _) = self.lstm_TIT(seq)
-            x = torch.cat([h_n[-1], out.mean(1), out.max(1).values], dim=1)
-            return F.relu(self.lstm_reduce_TIT(x))
+            dx_mean = torch.zeros_like(mean)
+            dx_std = torch.zeros_like(std)
+
+        result = torch.cat([
+            mean,
+            std,
+            range_val,
+            dx_mean,
+            dx_std
+        ], dim=0) 
+        return result
 
 
 def worker(gpu_id:int, gpu_tasks: List[List[Tuple[Path, str, str, List[Path]]]]) -> None:
