@@ -40,8 +40,8 @@ class FeatureZone:
         logger.info("def ResNet")
 
         self.resnet = self.get_res().to(self.device)
-        self.resnet_reduce = nn.Linear(2048, 512).to(self.device)
-        self.reduce = nn.Linear(5* 512, 32)
+        self.resnet_reduce = nn.Linear(2048, 1024).to(self.device)
+        self.reduce = nn.Linear(5* 1024, 64)
 
         self.resnet.eval()
 
@@ -216,6 +216,12 @@ class FeatureZone:
         spath = self.path / "feature" / self.set / "stats"
         stats = np.load(spath / "train_stats.npz")
 
+        for k in stats.files:
+            arr = stats[k]
+            if not np.isfinite(arr).all():
+                logger.error(f"Stat {k} contains NaN/Inf")
+                logger.error(f"min={np.nanmin(arr)}, max={np.nanmax(arr)}")
+
         self.MLFmean = torch.tensor(stats["MLFmean"], device=self.device)
         self.MLFstd = torch.tensor(stats["MLFstd"], device=self.device)
         self.TITmean = torch.tensor(stats["TITmean"], device=self.device)
@@ -354,44 +360,44 @@ class FeatureZone:
         """
         logger.info("Start get_global for: " + modality)
 
-        p_sum = v_sum = a_sum = 0.0
-        p_sq_sum = v_sq_sum = a_sq_sum = 0.0
-        p_count = v_count = a_count = 0
+        arr_sum = p_sum = v_sum = 0.0
+        arr_sq_sum = p_sq_sum = v_sq_sum = 0.0
+        arr_count = p_count = v_count = 0
 
-        pat_folders = sorted([
-            f for f in (self.path / self.folder / self.split).iterdir()
-            if f.is_dir()
-        ])
-
+        pat_folders = sorted([f for f in (self.path / "clean" / self.split).iterdir() if f.is_dir()])
         for p in pat_folders:
             path = p / f"{modality}eit.npz"
-
+            
             if not path.exists():
                 logger.warning(f"Missing file, skipping: {path}")
                 continue
 
             data = np.load(path)
+            arr = data['EITdata']
+            valid = np.isfinite(arr)
 
-            a_sum += data['EITdata'].sum()
-            a_sq_sum += np.square(data['EITdata']).sum()
-            a_count += data['EITdata'].size
-
+            arr_sum += arr[valid].sum()
+            arr_sq_sum += np.square(arr[valid]).sum()
+            arr_count += valid.sum()
+ 
             p_sum += data['pressureData'].sum()
             p_sq_sum += np.square(data['pressureData']).sum()
             p_count += data['pressureData'].size
-
+ 
             v_sum += data['volumeData'].sum()
             v_sq_sum += np.square(data['volumeData']).sum()
             v_count += data['volumeData'].size
 
             del data
-        if p_count == 0 or v_count == 0:
-            raise RuntimeError(f"No pressure/volume data found for modality {modality}")
-        
-        a_mean = a_sum / a_count
-        a_var = a_sq_sum / a_count - a_mean**2
-        a_var = np.maximum(a_var, 0.0)
-        a_std = np.sqrt(a_var) + 1e-6
+
+        if arr_count == 0:
+            logger.warning(f"No data found for {modality}")
+            return 0.0, 1.0, 0.0, 1.0, 0.0, 1.0
+
+        arr_mean = arr_sum / arr_count
+        arr_var = arr_sq_sum / arr_count - arr_mean**2
+        arr_var = np.maximum(arr_var, 0.0)
+        arr_std = np.sqrt(arr_var) + 1e-6
 
         p_mean = p_sum / p_count
         p_var = p_sq_sum / p_count - p_mean**2
@@ -404,7 +410,7 @@ class FeatureZone:
         v_std = np.sqrt(v_var) + 1e-6
 
         return (
-            np.float32(a_mean), np.float32(a_std),
+            np.float32(arr_mean), np.float32(arr_std),
             np.float32(p_mean), np.float32(p_std),
             np.float32(v_mean), np.float32(v_std)
         )
@@ -447,7 +453,7 @@ class FeatureZone:
         """
         spatial_features = []
 
-        with torch.no_grad(), torch.cuda.amp.autocast():
+        with torch.no_grad():
             for i in range(0, frames.shape[0], batch_size):
                 chunk = torch.from_numpy(frames[i:i + batch_size]).float().to(self.device)
                 chunk = chunk.unsqueeze(1).repeat(1, 3, 1, 1)
@@ -466,6 +472,8 @@ class FeatureZone:
                     )
 
                 chunk[~mask] = 0.0
+                if torch.isnan(chunk).any():
+                    print("NaNs before ResNet 3D!")
 
                 chunk = F.interpolate(chunk, 
                                       size=(224, 224), 
@@ -516,7 +524,7 @@ class FeatureZone:
 
         spatial_features = []
 
-        with torch.no_grad(), torch.cuda.amp.autocast():
+        with torch.no_grad():
             for i in range(0, frames.shape[0], batch_size):
 
                 chunk = (
@@ -578,11 +586,12 @@ class FeatureZone:
         return torch.cat(spatial_features, dim=0)
 
     def temp_pool(self, x):
+        x = x.float()
         mean = x.mean(dim=0)
         std = x.std(dim=0)
         q10 = torch.quantile(x, 0.1, dim=0)
         q90 = torch.quantile(x, 0.9, dim=0)
-        range_val = q10 - q90
+        range_val = q90 - q10
 
         if x.shape[0] >= 2:
             dx = x[1:] - x[:-1]
