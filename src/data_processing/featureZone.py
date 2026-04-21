@@ -345,7 +345,7 @@ class FeatureZone:
         np.float32, np.float32
     ]:
         """
-        Calculates min max for picture data and mean and std for pressure and volume data.
+        Calculates mean and std for all data.
 
         Parameters
         ----------
@@ -354,7 +354,7 @@ class FeatureZone:
 
         Returns
         -------
-        np.float32 : min, np.float32 : max,
+        np.float32 : mean, np.float32 : std,
         np.float32 : mean of pressure, np.float32 : std of pressure,
         np.float32 : mean of volume, np.float32 std of volume
         """
