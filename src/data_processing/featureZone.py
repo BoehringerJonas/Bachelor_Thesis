@@ -168,7 +168,7 @@ class FeatureZone:
 
     def calc_stats(self):
         """
-        Coordinates the calculation of min, max, mean and std of the data. Safes everything.
+        Coordinates the calculation of mean, std, mean and std of the data. Safes everything.
         """
         if self.split != "train":
             raise RuntimeError(
@@ -211,7 +211,7 @@ class FeatureZone:
 
     def load_stats(self):
         """
-        Loads min, max, mean and std of the data calculated in calc_stats to global variable.
+        Loads mean, std, mean and std of the data calculated in calc_stats to global variable.
         """
         spath = self.path / "feature" / self.set / "stats"
         stats = np.load(spath / "train_stats.npz")
@@ -236,6 +236,13 @@ class FeatureZone:
         self.TITpstd = torch.tensor(stats["TITpstd"], device=self.device)
         self.TITvmean = torch.tensor(stats["TITvmean"], device=self.device)
         self.TITvstd = torch.tensor(stats["TITvstd"], device=self.device)
+
+        self.MLFstd = torch.clamp(self.MLFstd, min=0.01)
+        self.TITstd = torch.clamp(self.TITstd, min=0.01)
+        self.MLFpstd = torch.clamp(self.MLFpstd, min=0.01)
+        self.MLFvstd = torch.clamp(self.MLFvstd, min=0.01)
+        self.TITpstd = torch.clamp(self.TITpstd, min=0.01)
+        self.TITvstd = torch.clamp(self.TITvstd, min=0.01)
 
         self.amean = stats["amean"]
         self.astd = stats["astd"]
@@ -309,27 +316,27 @@ class FeatureZone:
         amean = asum / count
         var = asq_sum / count - amean**2
         var = np.maximum(var, 0.0)
-        astd = np.sqrt(var) + 1e-6
+        astd = np.sqrt(var)
 
         bmean = bsum / count
         var = bsq_sum / count - bmean**2
         var = np.maximum(var, 0.0)
-        bstd = np.sqrt(var) + 1e-6
+        bstd = np.sqrt(var) 
 
         wmean = wsum / count
         var = wsq_sum / count - wmean**2
         var = np.maximum(var, 0.0)
-        wstd = np.sqrt(var) + 1e-6
+        wstd = np.sqrt(var)
 
         hmean = hsum / count
         var = hsq_sum / count - hmean**2
         var = np.maximum(var, 0.0)
-        hstd = np.sqrt(var) + 1e-6
+        hstd = np.sqrt(var)
 
         pmean = psum / count
         var = psq_sum / count - pmean**2
         var = np.maximum(var, 0.0)
-        pstd = np.sqrt(var) + 1e-6
+        pstd = np.sqrt(var)
 
         return (
             np.float32(amean), np.float32(astd),
@@ -345,7 +352,7 @@ class FeatureZone:
         np.float32, np.float32
     ]:
         """
-        Calculates mean and std for all data.
+        Calculates mean std for picture data and mean and std for pressure and volume data.
 
         Parameters
         ----------
@@ -376,10 +383,13 @@ class FeatureZone:
             arr = data['EITdata']
             valid = np.isfinite(arr)
 
-            arr_sum += arr[valid].sum()
-            arr_sq_sum += np.square(arr[valid]).sum()
-            arr_count += valid.sum()
- 
+            a = data['EITdata']
+            valid = np.isfinite(a)
+
+            a_sum += a[valid].sum()
+            a_sq_sum += np.square(a[valid]).sum()
+            a_count += valid.sum()
+
             p_sum += data['pressureData'].sum()
             p_sq_sum += np.square(data['pressureData']).sum()
             p_count += data['pressureData'].size
@@ -389,28 +399,26 @@ class FeatureZone:
             v_count += data['volumeData'].size
 
             del data
-
-        if arr_count == 0:
-            logger.warning(f"No data found for {modality}")
-            return 0.0, 1.0, 0.0, 1.0, 0.0, 1.0
-
-        arr_mean = arr_sum / arr_count
-        arr_var = arr_sq_sum / arr_count - arr_mean**2
-        arr_var = np.maximum(arr_var, 0.0)
-        arr_std = np.sqrt(arr_var) + 1e-6
+        if p_count == 0 or v_count == 0 or a_count:
+            raise RuntimeError(f"No data found for modality {modality}")
+        
+        a_mean = a_sum / a_count
+        a_var = a_sq_sum / a_count - a_mean**2
+        a_var = np.maximum(a_var, 0.0)
+        a_std = np.sqrt(a_var)
 
         p_mean = p_sum / p_count
         p_var = p_sq_sum / p_count - p_mean**2
         p_var = np.maximum(p_var, 0.0)
-        p_std = np.sqrt(p_var) + 1e-6
+        p_std = np.sqrt(p_var)
 
         v_mean = v_sum / v_count
         v_var = v_sq_sum / v_count - v_mean**2
         v_var = np.maximum(v_var, 0.0)
-        v_std = np.sqrt(v_var) + 1e-6
+        v_std = np.sqrt(v_var)
 
         return (
-            np.float32(arr_mean), np.float32(arr_std),
+            np.float32(a_mean), np.float32(a_std),
             np.float32(p_mean), np.float32(p_std),
             np.float32(v_mean), np.float32(v_std)
         )
@@ -463,12 +471,12 @@ class FeatureZone:
                 if modality == "MLF":
                     chunk[mask] = (
                         (chunk[mask] - self.MLFmean)
-                        / (self.MLFstd + 1e-6)
+                        / (self.MLFstd)
                     )
                 else:
                     chunk[mask] = (
                         (chunk[mask] - self.TITmean)
-                        / (self.TITstd + 1e-6)
+                        / (self.TITstd)
                     )
 
                 chunk[~mask] = 0.0
@@ -532,19 +540,19 @@ class FeatureZone:
                     .float()
                     .to(self.device, non_blocking=True)
                     .unsqueeze(1)
-                )  # (B,1,H,W)
+                )
 
                 mask = ~torch.isnan(chunk)
 
                 if modality == "MLF":
                     chunk[mask] = (
                         (chunk[mask] - self.MLFmean)
-                        / (self.MLFstd + 1e-6)
+                        / (self.MLFstd)
                     )
                 else:
                     chunk[mask] = (
                         (chunk[mask] - self.TITmean)
-                        / (self.TITstd + 1e-6)
+                        / (self.TITstd)
                     )
 
                 chunk[:, 0, :, :][mask[:, 0, :, :]] = (
