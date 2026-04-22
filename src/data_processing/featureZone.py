@@ -44,7 +44,7 @@ class FeatureZone:
 
         self.lstm_MLF = nn.LSTM(
             input_size=512,
-            hidden_size=64,
+            hidden_size=32,
             num_layers=2,
             batch_first=True,
             dropout=0.1
@@ -52,14 +52,14 @@ class FeatureZone:
 
         self.lstm_TIT = nn.LSTM(
             input_size=512,
-            hidden_size=64,
+            hidden_size=32,
             num_layers=2,
             batch_first=True,
             dropout=0.1
         ).to(self.device)
 
-        self.lstm_reduce_MLF = nn.Linear(192, 16).to(self.device)
-        self.lstm_reduce_TIT = nn.Linear(192, 16).to(self.device)
+        self.lstm_reduce_MLF = nn.Linear(96, 64).to(self.device)
+        self.lstm_reduce_TIT = nn.Linear(96, 64).to(self.device)
 
         self.resnet.eval()
         self.lstm_MLF.eval()
@@ -188,7 +188,7 @@ class FeatureZone:
 
     def calc_stats(self):
         """
-        Coordinates the calculation of min, max, mean and std of the data. Safes everything.
+        Coordinates the calculation of mean, std, mean and std of the data. Safes everything.
         """
         if self.split != "train":
             raise RuntimeError(
@@ -231,7 +231,7 @@ class FeatureZone:
 
     def load_stats(self):
         """
-        Loads min, max, mean and std of the data calculated in calc_stats to global variable.
+        Loads mean, std, mean and std of the data calculated in calc_stats to global variable.
         """
         spath = self.path / "feature" / self.set / "stats"
         stats = np.load(spath / "train_stats.npz")
@@ -250,6 +250,13 @@ class FeatureZone:
         self.TITpstd = torch.tensor(stats["TITpstd"], device=self.device)
         self.TITvmean = torch.tensor(stats["TITvmean"], device=self.device)
         self.TITvstd = torch.tensor(stats["TITvstd"], device=self.device)
+
+        self.MLFstd = torch.clamp(self.MLFstd, min=0.01)
+        self.TITstd = torch.clamp(self.TITstd, min=0.01)
+        self.MLFpstd = torch.clamp(self.MLFpstd, min=0.01)
+        self.MLFvstd = torch.clamp(self.MLFvstd, min=0.01)
+        self.TITpstd = torch.clamp(self.TITpstd, min=0.01)
+        self.TITvstd = torch.clamp(self.TITvstd, min=0.01)
 
         self.amean = stats["amean"]
         self.astd = stats["astd"]
@@ -323,27 +330,27 @@ class FeatureZone:
         amean = asum / count
         var = asq_sum / count - amean**2
         var = np.maximum(var, 0.0)
-        astd = np.sqrt(var) + 1e-6
+        astd = np.sqrt(var)
 
         bmean = bsum / count
         var = bsq_sum / count - bmean**2
         var = np.maximum(var, 0.0)
-        bstd = np.sqrt(var) + 1e-6
+        bstd = np.sqrt(var) 
 
         wmean = wsum / count
         var = wsq_sum / count - wmean**2
         var = np.maximum(var, 0.0)
-        wstd = np.sqrt(var) + 1e-6
+        wstd = np.sqrt(var)
 
         hmean = hsum / count
         var = hsq_sum / count - hmean**2
         var = np.maximum(var, 0.0)
-        hstd = np.sqrt(var) + 1e-6
+        hstd = np.sqrt(var)
 
         pmean = psum / count
         var = psq_sum / count - pmean**2
         var = np.maximum(var, 0.0)
-        pstd = np.sqrt(var) + 1e-6
+        pstd = np.sqrt(var)
 
         return (
             np.float32(amean), np.float32(astd),
@@ -359,7 +366,7 @@ class FeatureZone:
         np.float32, np.float32
     ]:
         """
-        Calculates min max for picture data and mean and std for pressure and volume data.
+        Calculates mean std for picture data and mean and std for pressure and volume data.
 
         Parameters
         ----------
@@ -368,7 +375,7 @@ class FeatureZone:
 
         Returns
         -------
-        np.float32 : min, np.float32 : max,
+        np.float32 : mean, np.float32 : std,
         np.float32 : mean of pressure, np.float32 : std of pressure,
         np.float32 : mean of volume, np.float32 std of volume
         """
@@ -392,9 +399,12 @@ class FeatureZone:
 
             data = np.load(path)
 
-            a_sum += data['EITdata'].sum()
-            a_sq_sum += np.square(data['EITdata']).sum()
-            a_count += data['EITdata'].size
+            a = data['EITdata']
+            valid = np.isfinite(a)
+
+            a_sum += a[valid].sum()
+            a_sq_sum += np.square(a[valid]).sum()
+            a_count += valid.sum()
 
             p_sum += data['pressureData'].sum()
             p_sq_sum += np.square(data['pressureData']).sum()
@@ -411,17 +421,17 @@ class FeatureZone:
         a_mean = a_sum / a_count
         a_var = a_sq_sum / a_count - a_mean**2
         a_var = np.maximum(a_var, 0.0)
-        a_std = np.sqrt(a_var) + 1e-6
+        a_std = np.sqrt(a_var)
 
         p_mean = p_sum / p_count
         p_var = p_sq_sum / p_count - p_mean**2
         p_var = np.maximum(p_var, 0.0)
-        p_std = np.sqrt(p_var) + 1e-6
+        p_std = np.sqrt(p_var)
 
         v_mean = v_sum / v_count
         v_var = v_sq_sum / v_count - v_mean**2
         v_var = np.maximum(v_var, 0.0)
-        v_std = np.sqrt(v_var) + 1e-6
+        v_std = np.sqrt(v_var)
 
         return (
             np.float32(a_mean), np.float32(a_std),
@@ -467,7 +477,7 @@ class FeatureZone:
         """
         spatial_features = []
 
-        with torch.no_grad(), torch.cuda.amp.autocast():
+        with torch.no_grad():
             for i in range(0, frames.shape[0], batch_size):
                 chunk = torch.from_numpy(frames[i:i + batch_size]).float().to(self.device)
                 chunk = chunk.unsqueeze(1).repeat(1, 3, 1, 1)
@@ -477,12 +487,12 @@ class FeatureZone:
                 if modality == "MLF":
                     chunk[mask] = (
                         (chunk[mask] - self.MLFmean)
-                        / (self.MLFstd + 1e-6)
+                        / (self.MLFstd)
                     )
                 else:
                     chunk[mask] = (
                         (chunk[mask] - self.TITmean)
-                        / (self.TITstd + 1e-6)
+                        / (self.TITstd)
                     )
 
                 chunk[~mask] = 0.0
@@ -536,7 +546,7 @@ class FeatureZone:
 
         spatial_features = []
 
-        with torch.no_grad(), torch.cuda.amp.autocast():
+        with torch.no_grad():
             for i in range(0, frames.shape[0], batch_size):
 
                 chunk = (
@@ -544,19 +554,19 @@ class FeatureZone:
                     .float()
                     .to(self.device, non_blocking=True)
                     .unsqueeze(1)
-                )  # (B,1,H,W)
+                )
 
                 mask = ~torch.isnan(chunk)
 
                 if modality == "MLF":
                     chunk[mask] = (
                         (chunk[mask] - self.MLFmean)
-                        / (self.MLFstd + 1e-6)
+                        / (self.MLFstd)
                     )
                 else:
                     chunk[mask] = (
                         (chunk[mask] - self.TITmean)
-                        / (self.TITstd + 1e-6)
+                        / (self.TITstd)
                     )
 
                 chunk[:, 0, :, :][mask[:, 0, :, :]] = (

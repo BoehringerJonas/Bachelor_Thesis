@@ -17,7 +17,7 @@ logger = logging.getLogger("workflow")
 
 class Trainer:
     def __init__(self, train_loader:DataLoader, val_loader:DataLoader, test_loader:DataLoader,
-                full_loader:DataLoader, pmean:float, pstd:float, path:Path) -> None:
+                pmean:float, pstd:float, path:Path) -> None:
         """
         Parameters
         ----------
@@ -29,7 +29,6 @@ class Trainer:
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.test_loader = test_loader
-        self.full_loader = full_loader
         self.pmean = pmean
         self.pstd = pstd
         self.path = path
@@ -87,7 +86,7 @@ class Trainer:
                                                     )
 
         # Evaluate the model
-        test_loss, test_mae, test_mse = self.evaluate_model(model, self.test_loader, criterion, "")
+        test_loss, test_mae, test_mse = self.evaluate_model(model, self.test_loader, criterion)
 
         plt.figure()
         plt.plot(train_losses, label="Train")
