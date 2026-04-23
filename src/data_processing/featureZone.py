@@ -41,7 +41,7 @@ class FeatureZone:
 
         self.resnet = self.get_res().to(self.device)
         self.resnet_reduce = nn.Linear(2048, 1024).to(self.device)
-        self.reduce = nn.Linear(5* 1024, 64)
+        self.reduce = nn.Linear(5* 512, 1024)
 
         self.resnet.eval()
 
@@ -367,9 +367,9 @@ class FeatureZone:
         """
         logger.info("Start get_global for: " + modality)
 
-        arr_sum = p_sum = v_sum = 0.0
-        arr_sq_sum = p_sq_sum = v_sq_sum = 0.0
-        arr_count = p_count = v_count = 0
+        a_sum = p_sum = v_sum = 0.0
+        a_sq_sum = p_sq_sum = v_sq_sum = 0.0
+        a_count = p_count = v_count = 0
 
         pat_folders = sorted([f for f in (self.path / "clean" / self.split).iterdir() if f.is_dir()])
         for p in pat_folders:
@@ -380,8 +380,6 @@ class FeatureZone:
                 continue
 
             data = np.load(path)
-            arr = data['EITdata']
-            valid = np.isfinite(arr)
 
             a = data['EITdata']
             valid = np.isfinite(a)

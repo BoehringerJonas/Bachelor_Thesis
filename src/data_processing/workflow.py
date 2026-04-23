@@ -34,13 +34,13 @@ class Workflow:
         multyprozess of the feature Zone.
         """
         logger.info("\n##########\nStart Clean Zone\n##########")
-        #CleanZone(self.input_path).run()
+        CleanZone(self.input_path).run()
         
         logger.info("\n##########\nStart Split Data\n##########")
-        #SplitData(self.input_path).run()
+        SplitData(self.input_path).run()
 
         logger.info("\n##########\nStart Split Titration\n##########")
-        #SplitTit(self.input_path / 'clean').run()
+        SplitTit(self.input_path / 'clean').run()
 
         logger.info("\n##########\nStart Feature Zone\n##########")        
         for set_name in ["full_tit", "half_tit", "third_tit"]:
