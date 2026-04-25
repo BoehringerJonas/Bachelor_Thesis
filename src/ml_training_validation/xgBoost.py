@@ -42,19 +42,19 @@ class XGBoost:
         """
         logger.info("Start XGBoost")
         param_dist = {
-            "n_estimators": [400, 500, 1000, 2000],
+            "n_estimators": [300, 500, 1000],
             "max_depth": [3, 5, 8],
-            "learning_rate": [0.05, 0.1],
-            "subsample": [0.6, 0.8, 1.0],
-            "colsample_bytree": [0.6, 1.0],
-            "min_child_weight": [1, 5, 10],
+            "learning_rate": [0.01, 0.05, 0.1],
+            "subsample": [0.8, 1.0],
+            "colsample_bytree": [0.7, 1.0],
+            "min_child_weight": [1, 3, 5],
         }
 
         search = RandomizedSearchCV(
             self.model,
             param_distributions=param_dist,
             n_iter=30,
-            cv=6,
+            cv=4,
             scoring='neg_mean_absolute_error',
             n_jobs=-1,
             random_state=42

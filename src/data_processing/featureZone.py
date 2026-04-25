@@ -415,7 +415,7 @@ class FeatureZone:
             v_count += data['volumeData'].size
 
             del data
-        if p_count == 0 or v_count == 0:
+        if p_count == 0 or v_count == 0 or a_count == 0:
             raise RuntimeError(f"No pressure/volume data found for modality {modality}")
         
         a_mean = a_sum / a_count
