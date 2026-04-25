@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --gres=gpu:3
 #SBATCH --mem=128G
-#SBATCH --time=00:30:00
+#SBATCH --time=01:30:00
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=jonas02boehringer@gmail.com
 
@@ -56,4 +56,4 @@ python -c "import inspect; import src.data_processing.featureZone as f; print('F
 # -----------------------------
 # 8. Start
 # -----------------------------
-srun python src/data_processing/workflow.py --input_path ~/run4
+srun python src/data_processing/workflow.py --input_path ~/run6

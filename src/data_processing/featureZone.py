@@ -40,8 +40,8 @@ class FeatureZone:
         logger.info("def ResNet")
 
         self.resnet = self.get_res().to(self.device)
-        self.resnet_reduce = nn.Linear(2048, 1024).to(self.device)
-        self.reduce = nn.Linear(5* 512, 1024)
+        self.resnet_reduce = nn.Linear(2048, 512).to(self.device)
+        self.reduce = nn.Linear(5* 512, 32)
 
         self.resnet.eval()
 
@@ -159,10 +159,7 @@ class FeatureZone:
             weight=np.array([(data['weight'] - self.wmean) / self.wstd], dtype=np.float32),
             height=np.array([(data['height'] - self.hmean) / self.hstd], dtype=np.float32),
             smoke=np.array([data['smoke']], dtype=np.float32),
-            targetPEEP=np.array(
-                [(data['targetPEEP'] - self.pmean) / self.pstd],
-                dtype=np.float32
-            ),
+            targetPEEP=np.array([(data['targetPEEP'] - self.pmean) / self.pstd], dtype=np.float32),
         )
         logger.info(f"Finish Patient: {p.name}")
 
@@ -397,7 +394,7 @@ class FeatureZone:
             v_count += data['volumeData'].size
 
             del data
-        if p_count == 0 or v_count == 0 or a_count:
+        if p_count == 0 or v_count == 0 or a_count == 0:
             raise RuntimeError(f"No data found for modality {modality}")
         
         a_mean = a_sum / a_count

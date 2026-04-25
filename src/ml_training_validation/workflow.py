@@ -10,6 +10,8 @@ from patientDataModule import PatientDataModule
 from randomForest import RandomForest
 from xgBoost import XGBoost
 from trainer import Trainer
+from cross_validation import CVtest
+from feature_ranking import FeatureRanking
 
 
 log_file = f"/hpc/gpfs2/home/u/boehrijo/logs/workflow_{time.strftime('%Y%m%d_%H%M%S')}.log"
@@ -85,6 +87,9 @@ class Workflow:
 
                 RandomForest(x_train, y_train, x_test, y_test, mean, std, self.output_path / i / j).run()
                 XGBoost(x_train, y_train, x_train, y_train, x_val, y_val, x_test, y_test, mean, std, self.output_path / i / j).run()
+                CVtest(x_train, y_train, std, self.output_path / i / j).run()
+
+                FeatureRanking(self.output_path / i / j, test_loader).run()
         
         logger.info("\n##########\nCreate ovre all json\n##########\n")
 
