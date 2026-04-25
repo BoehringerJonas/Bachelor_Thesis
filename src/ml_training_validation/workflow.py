@@ -92,7 +92,7 @@ class Workflow:
                 FeatureRanking(self.output_path / i / j, test_loader).run()
 
         
-        logger.info("\n##########\nCreate ovre all json\n##########\n")
+        logger.info("\n##########\nCreate ovre all jsons\n##########\n")
 
         results_path = self.output_path / "full_results.json"
         full_results = {}
@@ -108,6 +108,23 @@ class Workflow:
                     full_results[dataset_key][model_key] = metrics
 
         results_path.write_text(json.dumps(full_results, indent=4))
+
+        importance_path = self.output_path / "importance_results.json"
+        full_results = {}
+
+        for result_file in self.output_path.rglob("*impportance.json"):
+            result = json.loads(result_file.read_text())
+
+            for dataset_key, models in result.items():
+                if dataset_key not in full_results:
+                    full_results[dataset_key] = {}
+
+                for model_key, metrics in models.items():
+                    full_results[dataset_key][model_key] = metrics
+
+        importance_path.write_text(json.dumps(full_results, indent=4))
+
+
         logger.info("\n##########\nFinished Process\n##########")
 
 
