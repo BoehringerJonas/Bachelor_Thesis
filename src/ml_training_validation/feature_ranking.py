@@ -44,13 +44,22 @@ class FeatureRanking:
         x_test = torch.cat([mlf_test, tit_test, tab_test], dim=1)
 
         for result_file in self.path.rglob("*model*"):
+            kind = ""
             if "rf" in result_file.name and result_file.suffix == ".joblib":
                 kind = "RF"
                 model = joblib.load(result_file)
                 importance = model.feature_importances_
-                imp = {"mlf": importance[:mlf_shape].sum(),
-                    "tit": importance[mlf_shape:mlf_shape+tit_shape].sum(),
-                    "tab": importance[-tab_shape:].sum()}
+                imp = {
+                    self.path.parent.name: {
+                        self.path.name: {
+                            kind: {
+                                "mlf": importance[:mlf_shape].sum(),
+                                "tit": importance[mlf_shape:mlf_shape+tit_shape].sum(),
+                                "tab": importance[-tab_shape:].sum()
+                            }
+                        }
+                    }
+                }
             
                 logger.info(f"Feature importance sum: {np.sum(model.feature_importances_)}")
                 logger.info(f"Non-zero features: {np.count_nonzero(model.feature_importances_)}")
@@ -89,9 +98,17 @@ class FeatureRanking:
                     tit_scores.append(loss_tit - baseline)
                     tab_scores.append(loss_tab - baseline)
 
-                imp = {"mlf": float(np.mean(mlf_scores)),
-                    "tit": float(np.mean(tit_scores)),
-                    "tab": float(np.mean(tab_scores))}
+                imp = {
+                    self.path.parent.name: {
+                        self.path.name: {
+                            kind: {
+                                "mlf": float(np.mean(mlf_scores)),
+                                "tit": float(np.mean(tit_scores)),
+                                "tab": float(np.mean(tab_scores))
+                            }
+                        }
+                    }
+                }
 
             elif "XGB" in result_file.name and result_file.suffix == ".joblib":
                 kind = "XGB"
@@ -104,9 +121,17 @@ class FeatureRanking:
                     idx = int(k[1:])
                     importance[idx] = v
                 
-                imp = {"mlf": importance[:mlf_shape].sum(),
-                    "tit": importance[mlf_shape:mlf_shape+tit_shape].sum(),
-                    "tab": importance[-tab_shape:].sum()}
+                imp = {
+                    self.path.parent.name: {
+                        self.path.name: {
+                            kind: {
+                                "mlf": importance[:mlf_shape].sum(),
+                                "tit": importance[mlf_shape:mlf_shape+tit_shape].sum(),
+                                "tab": importance[-tab_shape:].sum()
+                            }
+                        }
+                    }
+                }
 
             else:
                 continue
@@ -122,7 +147,7 @@ class FeatureRanking:
             logger.info(f"Saved {self.path.parent.name} {self.path.name} importance: {out_file}")
 
             labels = ["MLF", "TIT", "TAB"]
-            values = [imp["mlf"], imp["tit"], imp["tab"]]
+            values = [imp[self.path.parent.name][self.path.name][kind]["mlf"], imp[self.path.parent.name][self.path.name][kind]["tit"], imp[self.path.parent.name][self.path.name][kind]["tab"]]
 
             plt.figure(figsize=(6, 4))
             plt.bar(labels, values)

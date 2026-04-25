@@ -77,21 +77,20 @@ class Workflow:
                     PatientDataModule(self.input_path / i / j, 8).run()
                 )
                 logger.info(f"\n##########\nStart MLP Trainer\n##########")
-                Trainer(train_loader, val_loader, test_loader, mean, std, self.output_path / i / j).run()
+                #Trainer(train_loader, val_loader, test_loader, mean, std, self.output_path / i / j).run()
 
                 logger.info(f"\n##########\nMaschine Learning\n##########")
                 x_train, y_train = self.get_numpy(train_loader)
                 x_val, y_val = self.get_numpy(val_loader)
                 x_test, y_test = self.get_numpy(test_loader)
 
-
-                RandomForest(x_train, y_train, x_test, y_test, mean, std, self.output_path / i / j).run()
-                XGBoost(x_train, y_train, x_train, y_train, x_val, y_val, x_test, y_test, mean, std, self.output_path / i / j).run()
-                CVtest(x_train, y_train, std, self.output_path / i / j).run()
-
+                #RandomForest(x_train, y_train, x_test, y_test, mean, std, self.output_path / i / j).run()
+                #XGBoost(x_train, y_train, x_train, y_train, x_val, y_val, x_test, y_test, mean, std, self.output_path / i / j).run()
+                
+                #CVtest(x_train, y_train, std, self.output_path / i / j).run()
                 FeatureRanking(self.output_path / i / j, test_loader).run()
         
-        logger.info("\n##########\nCreate ovre all json\n##########\n")
+        logger.info("\n##########\nCreate ovre all jsons\n##########\n")
 
         results_path = self.output_path / "full_results.json"
         full_results = {}
@@ -107,6 +106,21 @@ class Workflow:
                     full_results[dataset_key][model_key] = metrics
 
         results_path.write_text(json.dumps(full_results, indent=4))
+
+        importance_path = self.output_path / "importance_results.json"
+        full_results = {}
+
+        for result_file in self.output_path.rglob("*impportance.json"):
+            result = json.loads(result_file.read_text())
+
+            for dataset_key, models in result.items():
+                if dataset_key not in full_results:
+                    full_results[dataset_key] = {}
+
+                for model_key, metrics in models.items():
+                    full_results[dataset_key][model_key] = metrics
+
+        importance_path.write_text(json.dumps(full_results, indent=4))
         logger.info("\n##########\nFinished Process\n##########")
 
 
