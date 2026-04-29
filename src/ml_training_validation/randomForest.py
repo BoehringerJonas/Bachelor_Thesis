@@ -47,7 +47,7 @@ class RandomForest:
         """
         logger.info("Start Random Forest")
         param_dist = {
-            "n_estimators": [300, 500, 1000, 2000],
+            "n_estimators": [300, 500, 1000, 1500],
             "max_depth": [5, 10, 20, 30, None],
             "max_features": ["sqrt", 0.8],
             "min_samples_split": [2, 3, 5],
@@ -59,7 +59,7 @@ class RandomForest:
             self.rf,
             param_distributions=param_dist,
             n_iter=50,
-            cv=6,
+            cv=3,
             scoring='neg_mean_absolute_error',
             n_jobs=-1,
             random_state=42

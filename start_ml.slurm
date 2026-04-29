@@ -14,7 +14,6 @@
 # Aktiviere virtuelle Umgebung
 # -----------------------------
 source ~/ba/venv/bin/activate          # Pfad zu deiner venv
-
 # -----------------------------
 # Limitiere OpenMP Threads
 # -----------------------------
@@ -23,4 +22,4 @@ export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-1}
 # -----------------------------
 # Starte den Workflow
 # -----------------------------
-srun python ~/ba/src/ml_training_validation/workflow.py --input_path ~/run1/feature --output_path /hpc/gpfs2/home/u/boehrijo/run1/output
+srun python ~/ba/src/ml_training_validation/workflow.py --input_path ~/final_runs/run3/feature --output_path /hpc/gpfs2/home/u/boehrijo/final_runs/run3/output

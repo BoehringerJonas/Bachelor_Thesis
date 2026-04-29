@@ -27,6 +27,7 @@ class XGBoost:
         self.pmean = pmean
         self.pstd = pstd
         self.path = path
+
         self.model = xgb.XGBRegressor(
             tree_method="hist",
             device="cuda",
@@ -53,8 +54,8 @@ class XGBoost:
         search = RandomizedSearchCV(
             self.model,
             param_distributions=param_dist,
-            n_iter=30,
-            cv=6,
+            n_iter=40,
+            cv=3,
             scoring='neg_mean_absolute_error',
             n_jobs=-1,
             random_state=42
