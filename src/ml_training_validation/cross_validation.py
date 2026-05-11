@@ -30,7 +30,7 @@ class CVtest:
             self.model,
             self.x_train,
             self.y_train,
-            cv=4,
+            cv=3,
             scoring={
                 "mse": "neg_mean_squared_error"
             }

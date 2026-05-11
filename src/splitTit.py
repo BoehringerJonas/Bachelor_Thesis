@@ -12,11 +12,12 @@ class SplitTIT:
         self.path = Path(path)
 
     def run(self):
-        pat_folders = sorted(
-            p for p in self.path.rglob("*")
-            if p.is_dir() and not any(c.is_dir() for c in p.iterdir()))
-        
-        for idx, p in enumerate(pat_folders):
+        print("start")
+        files = list(self.path.rglob("TITeit.npz"))
+        print(f"Found files: {len(files)}")
+
+        for path in files:
+            p = path.parent
 
             path = p / "TITeit.npz"
 
@@ -35,13 +36,32 @@ class SplitTIT:
                     step_point.append(peaks[i])
             step_point.append(len(pre)-1) 
 
-            new_sig = []
-            for j in range(len(step_point)-1):
+            
+            half_eit, half_pres, half_vol = [], [], []
+            third_eit, third_pres, third_vol = [], [], []
+             
+
+            for j in range(len(step_point) - 1):
+                start = step_point[j]
+                end = step_point[j + 1]
+                if end <= start:
+                    continue
+
                 if j % 2 == 0:
-                    new_sig.extend(pre[step_point[j]:step_point[j+1]])
+                    b = pre[start:end]
+                    if b.size > 0:
+                        half_pres.append(b)
+
+                if j % 3 == 0:
+                    b = pre[start:end]
+                    if b.size > 0:
+                        third_pres.append(b)
+
+            half_pres = np.concatenate(half_pres, axis=0) if half_pres else np.array([])
+            third_pres = np.concatenate(third_pres, axis=0) if third_pres else np.array([])
 
 
-            fig, axes = plt.subplots(3, 1, figsize=(10, 8))
+            fig, axes = plt.subplots(4, 1, figsize=(10, 8))
 
             manager = plt.get_current_fig_manager()
 
@@ -61,11 +81,17 @@ class SplitTIT:
             axes[1].plot(step_point, pre[step_point], "rx")
             axes[1].set_title(f"splitt points for {p.name}")
 
-            axes[2].plot(new_sig)
-            axes[2].set_title(f"Shorten Titration for {p.name}")
+            axes[2].plot(half_pres)
+            axes[2].set_title(f"Half Shorten Titration for {p.name}")
+
+            axes[3].plot(third_pres)
+            axes[3].set_title(f"Third Shorten Titration for {p.name}")
 
             plt.tight_layout()
-            plt.show()
+            plt.savefig(p / f"exampleTIT.png", bbox_inches='tight')
+            plt.close()
+
+            print("finish")
 
 def entrypoint():
     import argparse

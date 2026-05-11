@@ -112,15 +112,22 @@ class Workflow:
         importance_path = self.output_path / "importance_results.json"
         full_results = {}
 
-        for result_file in self.output_path.rglob("*impportance.json"):
+        for result_file in self.output_path.rglob("*importance.json"):
             result = json.loads(result_file.read_text())
 
             for dataset_key, models in result.items():
                 if dataset_key not in full_results:
                     full_results[dataset_key] = {}
 
-                for model_key, metrics in models.items():
-                    full_results[dataset_key][model_key] = metrics
+                for image_key, metrics in models.items():
+                    if image_key not in full_results:
+                        full_results[dataset_key][image_key] = {}
+
+                    for model_key, metrics in models.items():
+                        if model_key not in full_results:
+                            full_results[dataset_key][image_key][model_key] = {}
+
+                        full_results[dataset_key][image_key][model_key] = metrics
 
         importance_path.write_text(json.dumps(full_results, indent=4))
 

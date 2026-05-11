@@ -54,7 +54,7 @@ class XGBoost:
             self.model,
             param_distributions=param_dist,
             n_iter=30,
-            cv=4,
+            cv=3,
             scoring='neg_mean_absolute_error',
             n_jobs=-1,
             random_state=42
