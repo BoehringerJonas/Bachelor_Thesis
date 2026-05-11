@@ -1,3 +1,7 @@
 venv
 __pycache__
 slurm-*.out
+after_nan.png
+before_nan.png
+nan_mask.png
+baseline_peep_loocv.png
