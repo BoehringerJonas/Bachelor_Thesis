@@ -1,12 +1,8 @@
-# BA
-
-
-## Description
-
+# BA Code
 
 ## Installation
 python -m venv venv
-venv\Scripts\activate
+source venv\Scripts\activate
 
 ```bash
 pip install torch==2.2.2 torchvision==0.17.2 --index-url https://download.pytorch.org/whl/cu118
@@ -15,8 +11,18 @@ pip install -r requirements.txt
 ```
 
 ## Usage
-python workflow.py --input_path D:\BA\WORKSPACE\data
+To start the data and traings pipeline run the slurm skripts or use the start code below. For the .slurm skripts please change starting command.
 
-python workflow.py --input_path D:\BA\WORKSPACE\data\feature8 --output_path D:\BA\WORKSPACE\data\output
+data pipeline: 
+    sbatch start_data.slurm
+    python workflow.py --input_path Path/to/data/dir
 
-## Authors and acknowledgment
+ml pipeline
+    sbatch start_data_test.slurm
+    python workflow.py --input_path PAth/to/feature/dir --output_path Path/to/outpu/dir
+
+Other skripts: Use the starting command or the start_data_test.slurm test skript with changed starting command:
+
+    python Path/to/base_model.py
+    python Path/to/nan_images_creation.py
+    python Path/to/splitTit.py --path Path/to/clean/patient/data
